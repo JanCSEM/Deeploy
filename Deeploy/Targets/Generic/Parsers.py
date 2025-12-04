@@ -2747,3 +2747,61 @@ class ConvTranspose1DParser(ConvTransposeParser):
                 "ch_im_out"] * self.operatorRepresentation["dim_im_out_y"]
             return newCtxt, True
         return ctxt, False
+
+class RandomNormalParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+
+        ret = all([len(node.inputs) == 0,
+                   len(node.outputs) == 1,
+                     'mean' in node.attrs,
+                     'scale' in node.attrs,
+                     'shape' in node.attrs])
+
+        return ret
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+
+        output = ctxt.lookup(node.outputs[0].name)
+        self.operatorRepresentation['output'] = output.name
+        self.operatorRepresentation['shape'] = node.attrs['shape']
+        self.operatorRepresentation['mean'] = float(node.attrs['mean'])
+        self.operatorRepresentation['scale'] = float(node.attrs['scale'])
+        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['shape'])
+
+        return ctxt, True
+
+class RandomUniformParser(NodeParser):
+
+    def __init__(self):
+        super().__init__()
+
+    def parseNode(self, node: gs.Node) -> bool:
+
+        ret = all([len(node.inputs) == 0,
+                   len(node.outputs) == 1,
+                   'low' in node.attrs,
+                   'high' in node.attrs,
+                   'shape' in node.attrs])
+
+        return ret
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+
+        output = ctxt.lookup(node.outputs[0].name)
+        self.operatorRepresentation['output'] = output.name
+        self.operatorRepresentation['shape'] = node.attrs['shape']
+        self.operatorRepresentation['low'] = float(node.attrs['low'])
+        self.operatorRepresentation['high'] = float(node.attrs['high'])
+        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['shape'])
+
+        return ctxt, True
