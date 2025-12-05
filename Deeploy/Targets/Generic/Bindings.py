@@ -310,7 +310,7 @@ BasicConvTransposeBindings = [
         BasicTransformer) for type in FloatDataTypes
 ]
 
-# Right now, we only have float32 implementations for random ops.
+# Only supports float32 for random generation nodes.
 BasicRandomNormalBindings = [
     NodeBinding(
         RandomNormalChecker([PointerClass(int32_t)], [PointerClass(float32_t)]), #seed, output
