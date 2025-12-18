@@ -23,6 +23,7 @@ package.json
 package-lock.json
 .mypy_cache
 node_modules
+.venv
 
 compile_commands.json
 
