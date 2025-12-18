@@ -2748,48 +2748,50 @@ class ConvTranspose1DParser(ConvTransposeParser):
             return newCtxt, True
         return ctxt, False
 
-class RandomNormalParser(NodeParser):
+class PerturbNormalParser(NodeParser):
 
     def __init__(self):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
 
-        ret = all([len(node.inputs) == 0,
+        ret = all([len(node.inputs) == 1,
                    len(node.outputs) == 1,
-                     'mean' in node.attrs,
-                     'scale' in node.attrs,
-                     'shape' in node.attrs])
-
+                     'seed' in node.attrs,
+                     'eps' in node.attrs])
         return ret
 
     def parseNodeCtxt(self,
                       ctxt: NetworkContext,
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
-
-        output = ctxt.lookup(node.outputs[0].name)
-        self.operatorRepresentation['output'] = output.name
-        self.operatorRepresentation['shape'] = node.attrs['shape']
-        self.operatorRepresentation['mean'] = float(node.attrs['mean'])
-        self.operatorRepresentation['scale'] = float(node.attrs['scale'])
-        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['shape'])
-
+        
+        data_in = ctxt.lookup(node.inputs[0].name)
+        data_out = ctxt.lookup(node.outputs[0].name)
+        input_shape = data_in.shape
+        if isinstance(data_in.shape, int):
+            input_shape = tuple(input_shape, )
+        self.operatorRepresentation['data_in'] = data_in.name
+        self.operatorRepresentation['data_out'] = data_out.name
+        self.operatorRepresentation['seed'] = node.attrs['seed']
+        self.operatorRepresentation['size'] = np.prod(input_shape)
+        self.operatorRepresentation['nodeIdx'] = node.attrs['idx']
+        self.operatorRepresentation['eps'] = node.attrs['eps']
         return ctxt, True
 
-class RandomUniformParser(NodeParser):
+class PerturbUniformParser(NodeParser):
 
     def __init__(self):
         super().__init__()
 
     def parseNode(self, node: gs.Node) -> bool:
 
-        ret = all([len(node.inputs) == 0,
+        ret = all([len(node.inputs) == 1,
                    len(node.outputs) == 1,
                    'low' in node.attrs,
                    'high' in node.attrs,
-                   'shape' in node.attrs])
-
+                    'seed' in node.attrs,
+                    'eps' in node.attrs])
         return ret
 
     def parseNodeCtxt(self,
@@ -2798,10 +2800,12 @@ class RandomUniformParser(NodeParser):
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
 
         output = ctxt.lookup(node.outputs[0].name)
-        self.operatorRepresentation['output'] = output.name
-        self.operatorRepresentation['shape'] = node.attrs['shape']
+        input = ctxt.lookup(node.inputs[0].name)
+        self.operatorRepresentation['seed'] = node.attrs['seed']
+        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['noise_shape'])
+        self.operatorRepresentation['nodeIdx'] = node.attrs['idx']
+        self.operatorRepresentation['eps'] = node.attrs['eps']
         self.operatorRepresentation['low'] = float(node.attrs['low'])
         self.operatorRepresentation['high'] = float(node.attrs['high'])
-        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['shape'])
 
         return ctxt, True

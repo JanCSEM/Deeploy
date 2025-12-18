@@ -15,7 +15,7 @@ from Deeploy.Targets.Generic.Templates import AddTemplate, BatchNormalizationTem
     ConvTransposeTemplate, DebugPrintTemplate, DequantTemplate, DummyTemplate, DWConvTemplate, FloatAddTemplate, \
     FloatConvTemplate, FloatDivTemplate, FloatDWConvTemplate, FloatGELUTemplate, FloatGemmTemplate, \
     FloatLayernormTemplate, FloatMatMulTemplate, FloatMaxPoolTemplate, FloatMulTemplate, FloatPadTemplate, \
-    FloatRandomNormalTemplate, FloatRandomUniformTemplate, FloatReduceMeanTemplate, FloatReluTemplate, FloatSoftmaxTemplate, \
+    FloatPerturbNormalTemplate, FloatPerturbUniformTemplate, FloatReduceMeanTemplate, FloatReluTemplate, FloatSoftmaxTemplate, \
     GatherTemplate, GemmTemplate, IntegerDivTemplate, ITAMaxTemplate, ITAPartialMaxTemplate, MatMulTemplate, \
     MaxPoolTemplate, MulTemplate, PadTemplate, QuantTemplate, ReduceMeanTemplate, ReduceSumTemplate, RequantShiftTemplate, \
     ReshapeTemplate, RQIntegerDivTemplate, RQSiGELUTemplate, SliceTemplate, TransposeTemplate, iGELUTemplate, \
@@ -24,7 +24,7 @@ from Deeploy.Targets.Generic.TypeCheckers import AddChecker, BatchNormChecker, C
     DebugPrintChecker, DequantChecker, DivChecker, DummyChecker, GatherChecker, GELUChecker, GEMMChecker, \
     LayerNormChecker, MatMulChecker, MaxPoolChecker, MulChecker, PadChecker, QuantChecker, ReduceMeanChecker, \
     ReduceSumChecker, ReluChecker, RequantShiftChecker, ReshapeChecker, RQIntegerDivChecker, SliceChecker, \
-    SoftmaxChecker, TransposeChecker, RandomNormalChecker, RandomUniformChecker
+    SoftmaxChecker, TransposeChecker, PerturbNormalChecker, PerturbUniformChecker
 
 BasicTransformer = CodeTransformation([ArgumentStructGeneration(), MemoryManagementGeneration(), FutureGeneration()])
 
@@ -311,14 +311,14 @@ BasicConvTransposeBindings = [
 ]
 
 # Right now, we only have float32 implementations for random ops.
-BasicRandomNormalBindings = [
+BasicPerturbNormalBindings = [
     NodeBinding(
-        RandomNormalChecker([PointerClass(int32_t)], [PointerClass(float32_t)]), #seed, output
-        FloatRandomNormalTemplate.referenceTemplate,
+        PerturbNormalChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
+        FloatPerturbNormalTemplate.referenceTemplate,
         BasicTransformer)]
 
-BasicRandomUniformBindings = [
+BasicPerturbUniformBindings = [
     NodeBinding(
-        RandomNormalChecker([PointerClass(int32_t)], [PointerClass(float32_t)]), #seed, output
-        FloatRandomNormalTemplate.referenceTemplate,
+        PerturbUniformChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
+        FloatPerturbUniformTemplate.referenceTemplate,
         BasicTransformer)]
