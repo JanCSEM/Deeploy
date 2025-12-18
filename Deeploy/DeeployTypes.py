@@ -357,6 +357,8 @@ class VariableBuffer():
             Size of this VariableBuffer in bytes
 
         """
+        if isinstance(self.shape, int):
+            self.shape = [self.shape]
         return (math.prod(self.shape) * (self._type.referencedType.typeWidth)) // 8
 
 
@@ -1368,7 +1370,6 @@ class NodeTypeChecker():
 
         if not self.checkOutputType(node.inputs, operatorRepresentation):
             return ctxt, False
-
         newCtxt = self.typeInferGlobalCtxt(newCtxt, node)
         newCtxt = self.typeInferOutput(newCtxt, node, operatorRepresentation)
         self.annotateDict(newCtxt, node, operatorRepresentation)
@@ -1700,6 +1701,7 @@ class NodeMapper():
             log.debug(f" {SUCCESS_MARK} Context parsing succeeded with {self.parser.__class__.__name__}")
         else:
             log.debug(f" {FAILURE_MARK} Context parsing failed with {self.parser.__class__.__name__}")
+
         return (newCtxt, ret)
 
     def bindingsExhausted(self) -> bool:
@@ -2078,13 +2080,13 @@ class ONNXLayer():
 
         newCtxt = ctxt.copy()
         newCtxt, _, ret = self.mapper.bind(newCtxt, self.node)
-
         if ret:
             # Update onnx graph with name of the template class
             self.node.attrs['mapping'] = str(self.mapper.binder.template.__class__).split("'")[1]
 
             # Update shapes and types of tensors in onnx graph based on type inference after binding
             for node in (self.node.inputs + self.node.outputs):
+
                 if ctxt.is_local(node.name):
                     node.shape = ctxt.localObjects[node.name].shape
                     npType = self._broadcastToNpType(ctxt.localObjects[node.name]._type)
@@ -2750,7 +2752,6 @@ class NetworkContainer():
         NetworkBindSuccess = True
         log.info("- Map Layers to Bindings")
         for name, layer in self.layerBinding.items():
-
             newCtxt, LayerBindSuccess = layer.bind(newCtxt)
             NetworkBindSuccess = NetworkBindSuccess and LayerBindSuccess
 
@@ -3104,6 +3105,67 @@ class NetworkContainer():
         if not os.path.isabs(absoluteOnnxPath) or not os.path.isabs(absoluteDataPath):
             raise OSError(f"Error exporting the context to: {absoluteOnnxPath}")
 
+        def _normalize_shape_object(shape):
+            """
+            Normalize a shape representation to a tuple of dims.
+            - int       -> (int,)      # rank-1 with that length
+            - list      -> tuple(list)
+            - tuple     -> tuple as is
+            - None      -> None (unknown/unranked)
+            - others    -> None (fallback)
+            """
+            if shape is None:
+                return None
+            if isinstance(shape, int):
+                return (shape,)
+            if isinstance(shape, (list, tuple)):
+                # normalize elements to ints or strings (symbolic), ignore weird types
+                out = []
+                for d in shape:
+                    if d is None:
+                        out.append(None)  # keep unknown dim
+                    elif isinstance(d, (int, np.integer)):
+                        out.append(int(d))
+                    elif isinstance(d, str):
+                        out.append(d)     # symbolic dim
+                    else:
+                        # fallback: try to coerce numpy/int-like
+                        try:
+                            out.append(int(d))
+                        except Exception:
+                            out.append(None)
+                return tuple(out)
+            # Fallback
+            return None
+
+        def normalize_all_tensor_shapes(graph: gs.Graph, prefer_constant_shapes=True):
+            """
+            Iterate over all tensors in a gs.Graph and normalize their .shape attribute:
+            - Convert int -> (int,)
+            - Convert list -> tuple(list)
+            - Optionally infer shape from Constant .values (numpy array) when present.
+            """
+            # gs.Graph.tensors() returns a dict: name -> gs.Tensor
+            tensors = graph.tensors()
+            for t in tensors.values():
+                # If it's a Constant with numpy values, we can set a robust shape
+                if isinstance(t, gs.Constant) and prefer_constant_shapes:
+                    continue  # we already set a stable shape; skip normalization below
+
+                # Otherwise normalize existing shape
+                t.shape = _normalize_shape_object(t.shape)
+
+            # You may also want to normalize node-level inferred shapes (inputs/outputs),
+            # though gs.Graph.tensors() usually covers all tensors referenced.
+            for node in graph.nodes:
+                for inp in (node.inputs):
+                    if isinstance(inp, gs.Variable):
+                        inp.shape = _normalize_shape_object(inp.shape)
+                for out in node.outputs:
+                     if isinstance(out, gs.Variable):
+                        out.shape = _normalize_shape_object(out.shape)
+
+        normalize_all_tensor_shapes(graph=self.graph)
         model = gs.export_onnx(self.graph)
 
         # Annotate additional information in doc_string of tensors
