@@ -42,10 +42,32 @@ class _ConcatTemplate(NodeTemplate):
 
 
 referenceTemplate = _ConcatTemplate("""
+<% # prepare macro-safe upper-case identifiers for guards
+_m1 = data_in_1.upper()
+_m2 = data_in_2.upper()
+_mo = data_out.upper()
+%>
 
+#ifndef ${_m1}_TF_DECLARED
+#define ${_m1}_TF_DECLARED
 char* ${data_in_1}_tf = (char*) ${data_in_1};
+#else
+${data_in_1}_tf = (char*) ${data_in_1};
+#endif
+
+#ifndef ${_m2}_TF_DECLARED
+#define ${_m2}_TF_DECLARED
 char* ${data_in_2}_tf = (char*) ${data_in_2};
+#else
+${data_in_2}_tf = (char*) ${data_in_2};
+#endif
+
+#ifndef ${_mo}_TF_DECLARED
+#define ${_mo}_TF_DECLARED
 char* ${data_out}_tf = (char*) ${data_out};
+#else
+${data_out}_tf = (char*) ${data_out};
+#endif
 
 for (int i=0; i<${iterations}; i++){
 memcpy(${data_out}_tf, ${data_in_1}_tf, ${in1TransferLength});

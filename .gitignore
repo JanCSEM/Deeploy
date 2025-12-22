@@ -24,7 +24,8 @@ package-lock.json
 .mypy_cache
 node_modules
 .venv
-
+venv
+.vscode/settings.json
 compile_commands.json
 
 docs/_autosummary
