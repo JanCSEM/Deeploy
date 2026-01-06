@@ -12,8 +12,8 @@ float32_t UniformSample(uint32_t *state);
 float32_t TriangularSample(uint32_t *state);
 
 // Applies triangular perturbation to the weights and applies rescaling to match Gaussian(0, 1) l2 norm.
-void ApplyTriangularPerturbation(const float32_t *__restrict__ psrc,
-                            float32_t *__restrict__ pdst,
+void ApplyTriangularPerturbation(const float32_t *__restrict__ pweights,
+                            float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
                             float32_t epsilon,
                             int32_t dir,
@@ -29,7 +29,8 @@ void UpdateWeightsTriangle(float32_t *__restrict__ pweights,
                             uint32_t size);
 
 // Applies uniform perturbation to the weights and applies rescaling to match Gaussian(0, 1) l2 norm.
-void ApplyUniformPerturbation(float32_t *__restrict__ pnoise,
+void ApplyUniformPerturbation(const float32_t *__restrict__ pweights,
+                            float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
                             int32_t dir,
                             float32_t epsilon,

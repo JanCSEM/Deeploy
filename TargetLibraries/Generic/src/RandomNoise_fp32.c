@@ -27,8 +27,8 @@ uint32_t Xorshift32(uint32_t state) {
     return state;
 }
 
-void ApplyTriangularPerturbation(const float32_t *__restrict__ psrc,
-                            float32_t *__restrict__ pdst, 
+void ApplyTriangularPerturbation(const float32_t *__restrict__ pweights,
+                            float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
                             float32_t epsilon,
                             int32_t dir,
@@ -38,7 +38,7 @@ void ApplyTriangularPerturbation(const float32_t *__restrict__ psrc,
     const float scale = epsilon * sqrt3; // sqrt(3): => variance 1
     for (uint32_t i = 0; i < size; ++i) {
         float tr = TriangularSample(&rng_state);
-        pdst[i] = psrc[i] + tr * scale;
+        pweights_dest[i] = pweights[i] + tr * scale;
     }
 }
 
@@ -57,7 +57,8 @@ void UpdateWeightsTriangle(float32_t *__restrict__ pweights,
     }
 }
 
-void ApplyUniformPerturbation(float32_t *__restrict__ pnoise, 
+void ApplyUniformPerturbation(const float32_t *__restrict__ pweights,
+                            float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
                             int32_t dir,
                             float32_t epsilon,
@@ -67,7 +68,7 @@ void ApplyUniformPerturbation(float32_t *__restrict__ pnoise,
     const float scale = epsilon * sqrt3 * 2.0f; // factor 2: [-0.5,0.5] => [-1,1], sqrt(3): => Gaussian(0, 1) l2 norm.
     for (uint32_t i = 0; i < size; ++i) {
         float u = UniformSample(&rng_state);
-        dst[i] = src[i] + u * scale;
+        pweights_dest[i] = pweights[i] + u * scale;
     }
 }
 
