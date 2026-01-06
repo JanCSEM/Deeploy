@@ -11,6 +11,7 @@ if __name__ == "__main__":
         description = "Deeploy Code Generation Utility for the Generic Platform (Host Machine, no Tiling).")
     args = parser.parse_args()
 
-    testRunner = TestRunner(platform = "Generic", simulator = "host", tiling = False, argument_parser = parser)
+    testRunner = TestRunner(platform = "Generic", simulator = "host", tiling = False, 
+                            argument_parser = parser, gen_args="--run_mode mezo_training")
 
     testRunner.run()

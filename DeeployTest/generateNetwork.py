@@ -156,7 +156,7 @@ def generateNetwork(args):
             if not buffer._signed:
                 values -= buffer.nLevels // 2
 
-    generateTestNetwork(deployer, test_inputs, test_outputs, args.dumpdir, verbosityCfg)
+    generateTestNetwork(deployer, test_inputs, test_outputs, args.dumpdir, verbosityCfg, args.run_mode)
 
 
 if __name__ == '__main__':
@@ -194,6 +194,8 @@ if __name__ == '__main__':
         help =
         "Number of cores on which the network is run. Currently, required for im2col buffer sizing on Siracusa. Default: 1.",
     )
+    parser.add_argument('--run_mode', type = str, default = 'inference', 
+                        help = 'Run mode of the network. Options are: inference, mezo_training.')
     parser.set_defaults(shouldFail = False)
 
     args = parser.parse_args()

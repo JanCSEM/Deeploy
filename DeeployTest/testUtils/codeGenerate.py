@@ -112,7 +112,7 @@ def generateTestOutputsHeader(deployer: NetworkDeployer, test_outputs: List[np.n
     return retStr
 
 
-def generateTestNetworkHeader(deployer: NetworkDeployer) -> str:
+def generateTestNetworkHeader(deployer: NetworkDeployer, run_mode: str = "inference") -> str:
 
     retStr = ""
 
@@ -123,29 +123,57 @@ def generateTestNetworkHeader(deployer: NetworkDeployer) -> str:
     #include <stdint.h>
     #include <stdlib.h>
     """
+
+    if run_mode == "mezo_training":
+        retStr += """
+        #define MEZO_TRAINING
+        """
     retStr += deployer.generateIncludeString()
-    if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
-        retStr += """
-        void RunNetwork();
-        void InitNetwork();
 
-        """
+    if run_mode == "inference":
+        if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+            retStr += """
+            void RunNetwork();
+            void InitNetwork();
+            """
+        else:
+            retStr += """
+            void RunNetwork(uint32_t core_id, uint32_t numThreads);
+            void InitNetwork(uint32_t core_id, uint32_t numThread);
+            """
+    elif run_mode == "mezo_training":
+        if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+            retStr += """
+            void RunNetworkPerturbed(uint32_t seed, uint8_t perturbation_sign);
+            void UpdateWeightsFiniteDiff(float32_t lr, uint32_t seed, float32_t loss);
+            void InitNetwork();
+            """
+        else:
+            retStr += """
+            void RunNetworkPerturbed(uint32_t core_id, 
+                                    uint32_t numThreads, 
+                                    uint32_t seed,
+                                    uint8_t perturbation_sign);
+            void UpdateWeightsFiniteDiff(uint32_t core_id, 
+                                        uint32_t numThreads, 
+                                        float32_t lr,
+                                        uint32_t seed,
+                                        float32_t loss);
+            void InitNetwork(uint32_t core_id, uint32_t numThreads);
+            """
     else:
-        retStr += """
-        void RunNetwork(uint32_t core_id, uint32_t numThreads);
-        void InitNetwork(uint32_t core_id, uint32_t numThread);
-
-        """
+        raise RuntimeError(f"Unsupported run mode '{run_mode}'")
 
     retStr += deployer.generateIOBufferInitializationCode()
     retStr += """
     #endif
     """
-
     return retStr
 
 
-def generateTestNetworkImplementation(deployer: NetworkDeployer, verbosityCfg: CodeGenVerbosity) -> str:
+def generateTestNetworkImplementation(deployer: NetworkDeployer,
+                                      verbosityCfg: CodeGenVerbosity,
+                                      run_mode: str = "inference") -> str:
     retStr = ""
 
     retStr += """#include <stdio.h>
@@ -156,40 +184,77 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer, verbosityCfg: C
     retStr += """
 
     #include "Network.h"
-
+    
     """
-
     retStr += deployer.generateBufferInitializationCode()
     retStr += deployer.generateGlobalDefinitionCode()
 
     # WIESEP: Mempool assigns section attributes to intermediate buffers to allow .
-    if isinstance(deployer.Platform, MemPoolPlatform):
-        retStr += deployer.generateInferenceInitializationCode()
-        retStr += """
-        void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
-        """
-    elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
-        retStr += """
-        void RunNetwork(){
-        """
-        retStr += deployer.generateInferenceInitializationCode()
-    else:
-        retStr += """
-        void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
-        """
-        retStr += deployer.generateInferenceInitializationCode()
 
-    retStr += deployer.generateFunction(verbosityCfg)
-    if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+    if run_mode == "inference":
+        if isinstance(deployer.Platform, MemPoolPlatform):
+            retStr += deployer.generateInferenceInitializationCode()
+            retStr += """
+            void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
+            """
+        elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+            retStr += """
+            void RunNetwork(){
+            """
+            retStr += deployer.generateInferenceInitializationCode()
+        else:
+            retStr += """
+            void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
+            """
+            retStr += deployer.generateInferenceInitializationCode()
+        retStr += deployer.generateFunction(verbosityCfg)
         retStr += """
         }
+        """
+    elif run_mode == "mezo_training":
+        if isinstance(deployer.Platform, MemPoolPlatform):
+            raise NotImplementedError("Mezo training not supported on MemPoolPlatform yet")
+        elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+            # retStr += """
+            # void RunNetworkPerturbed(uint8_t perturbation_sign){
+            # """
+            # retStr += deployer.generateInferenceInitializationCode()
+            raise NotImplementedError("Mezo training not supported on PULPPlatform yet")
+        else:
+            retStr += """
+            void RunNetworkPerturbed(__attribute__((unused)) uint32_t core_id,
+                                    __attribute__((unused)) uint32_t numThreads, 
+                                    uint32_t seed, 
+                                    uint8_t perturbation_sign){
+            """
+            retStr += deployer.generateInferenceInitializationCode()
+            retStr += deployer.generateFunction(verbosityCfg)
+            retStr += """
+            }
+            """
+            retStr += """
+            void UpdateWeightsFiniteDiff(__attribute__((unused)) uint32_t core_id,
+                                        __attribute__((unused)) uint32_t numThreads,
+                                        float32_t lr,
+                                        uint32_t seed,
+                                        float32_t loss){
+            """
+            # TODO: Check correctness.
+            retStr += deployer.generateInferenceInitializationCode()
+            retStr += deployer.generateUpdateFunction()
+            retStr += """
+            }
+            """
+    else:
+        raise RuntimeError(f"Unsupported run mode '{run_mode}'")
 
+    if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+       
+        retStr += """
         void InitNetwork(){
         """
     else:
         retStr += """
-        }
-
         void InitNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
         """
     retStr += deployer.generateEngineInitializationCode()
@@ -257,7 +322,7 @@ def generateL3HexDump(deployer: NetworkDeployer, path: str, test_inputs: List, t
 
 
 def generateTestNetwork(deployer: NetworkDeployer, test_inputs: List[np.ndarray], test_outputs: List[np.ndarray],
-                        dumpdir: str, verbosityCfg: CodeGenVerbosity) -> None:
+                        dumpdir: str, verbosityCfg: CodeGenVerbosity, run_mode: str = "inference") -> None:
     assert deployer.prepared, "An unprepared deployer was given"
 
     # Create input and output vectors
@@ -272,11 +337,11 @@ def generateTestNetwork(deployer: NetworkDeployer, test_inputs: List[np.ndarray]
         f.write(testOutputStr)
 
     # Generate code for Network
-    testNetworkHeaderStr = generateTestNetworkHeader(deployer)
+    testNetworkHeaderStr = generateTestNetworkHeader(deployer, run_mode)
     with open(f'{dumpdir}/Network.h', "w") as f:
         f.write(testNetworkHeaderStr)
 
-    testNetworkImplementationStr = generateTestNetworkImplementation(deployer, verbosityCfg)
+    testNetworkImplementationStr = generateTestNetworkImplementation(deployer, verbosityCfg, run_mode)
     with open(f'{dumpdir}/Network.c', "w") as f:
         f.write(testNetworkImplementationStr)
 
