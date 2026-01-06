@@ -318,10 +318,12 @@ BasicPerturbNormalBindings = [
     NodeBinding(
         PerturbNormalChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
         FloatPerturbNormalTemplate.referenceTemplate,
-        BasicTransformer)]
+        BasicTransformer,
+        FloatPerturbNormalTemplate.updateTemplate)]
 
 BasicPerturbUniformBindings = [
     NodeBinding(
         PerturbUniformChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
         FloatPerturbUniformTemplate.referenceTemplate,
         BasicTransformer)]
+        #FloatPerturbUniformTemplate.updateTemplate)]

@@ -1515,7 +1515,10 @@ class NodeBinding():
 
     """
 
-    def __init__(self, typeChecker: NodeTypeChecker, template: NodeTemplate, codeTransformer: CodeTransformation):
+    def __init__(self, typeChecker: NodeTypeChecker,
+                 template: NodeTemplate,
+                 codeTransformer: CodeTransformation,
+                 update_template: Optional[NodeTemplate] = None):
         self._typeChecker = typeChecker  #: NodeTypeChecker: The NodeTypeChecker that verifies the kernel template's signature can be matched to the node
         self.template = template  #: NodeTemplate: The kernel template you want to bind
         self._executionBlock: ExecutionBlock = ExecutionBlock(
@@ -1523,6 +1526,8 @@ class NodeBinding():
         self._nodeName: str
         self.buffers: List[VariableBuffer] = []
         self.codeTransformer: CodeTransformation = codeTransformer
+        # This is for weight updates.
+        self.update_template: Optional[NodeTemplate] = update_template
 
     def __repr__(self):
         return f"{self.template.__class__.__name__}{self._typeChecker.signature()}"
@@ -1565,6 +1570,7 @@ class NodeBinding():
 
         """
         self.executionBlock.addLeft(self.template, operatorRepresentation)
+
         self._nodeName = operatorRepresentation['nodeName']
         return ctxt
 
@@ -3609,3 +3615,33 @@ class NetworkDeployer(NetworkContainer):
         self._printMemorySummary()
 
         return self.generateInferenceCode()
+
+    def generateUpdateFunction(self) -> str:
+        """
+        Generates the C code for the body of the weight update function.
+        It iterates through all bound layers, finds those with an update_template,
+        and renders them.
+        """
+        if not self.bound:
+            raise RuntimeError('You need to bind the network before generating update code!')
+
+        update_call_stack = ''
+        for layer in self.layerBinding.values():
+            # The elected binder is on the mapper
+            binder = layer.mapper.binder
+
+            # The update_template is on the binder
+            if binder and hasattr(binder, 'update_template') and binder.update_template is not None:
+
+                # The necessary context (op_repr and type_dict) is on the binder's components
+                op_repr = layer.mapper.parser.operatorRepresentation
+                type_dict = binder.typeChecker.typeDict
+
+                # Mangle the op_repr to get the final C variable names, just like in ExecutionBlock.generate
+                mangled_op_repr = ExecutionBlock._mangleOpRepr(self.ctxt, {**op_repr, **type_dict})
+
+                # Render the template
+                update_call_stack += binder.update_template.generate(mangled_op_repr)
+                update_call_stack += "\n"
+
+        return update_call_stack
