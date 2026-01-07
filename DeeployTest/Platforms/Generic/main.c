@@ -69,7 +69,7 @@ static void LoadSampleFromBuffer(void) {
 }
 
 static float32_t ComputeCrossEntropyLoss(const float32_t *logits, uint32_t num_classes, uint32_t target_index) {
-  
+
   if (num_classes == 0u) {
     return 0.0f;
   }
@@ -89,6 +89,8 @@ static float32_t ComputeCrossEntropyLoss(const float32_t *logits, uint32_t num_c
 }
 
 int main(void) {
+  setvbuf(stdout, NULL, _IOLBF, 0);
+
   printf("Initializing network...\r\n");
   InitNetwork(0, 1);
 
@@ -99,7 +101,6 @@ int main(void) {
 
   for (uint32_t epoch = 0; epoch < MEZO_NUM_EPOCHS; ++epoch) {
     printf("Epoch %u/%u\r\n", (unsigned int)(epoch + 1), (unsigned int)MEZO_NUM_EPOCHS);
-
     uint32_t samples_in_window = 0;
     float32_t loss_plus_accum = 0.0f;
     float32_t loss_minus_accum = 0.0f;
