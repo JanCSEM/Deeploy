@@ -5,6 +5,7 @@
  */
 
 #include "DeeployBasicMath.h"
+#include <math.h>
 
 uint32_t Xorshift32(uint32_t state) {
     state ^= state << 13;
@@ -32,7 +33,7 @@ void ApplyTriangularPerturbation(const float32_t *__restrict__ pweights,
                             float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
                             float32_t epsilon,
-                            int32_t dir,
+                            uint32_t dir,
                             uint32_t size) {
     uint32_t rng_state = (seed * 1664525u) + 1013904223u;
     float32_t sqrt3 = 1.73205080757f;
@@ -62,8 +63,8 @@ void UpdateWeightsTriangle(float32_t *__restrict__ pweights,
 void ApplyUniformPerturbation(const float32_t *__restrict__ pweights,
                             float32_t *__restrict__ pweights_dest, 
                             uint32_t seed,
-                            int32_t dir,
                             float32_t epsilon,
+                            uint32_t dir,
                             uint32_t size) {
     uint32_t rng_state = (seed * 1664525u) + 1013904223u;
     float32_t sqrt3 = 1.73205080757f;

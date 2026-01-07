@@ -17,32 +17,59 @@
 #if defined(MEZO_TRAINING) && !defined(INFERENCE)
 
 #ifndef MEZO_NUM_EPOCHS
-#define MEZO_NUM_EPOCHS 1u
+#define MEZO_NUM_EPOCHS 5u
 #endif
 #ifndef MEZO_NUM_TRAINING_SAMPLES
-#define MEZO_NUM_TRAINING_SAMPLES 1u
+#define MEZO_NUM_TRAINING_SAMPLES 60000u
 #endif
 #ifndef MEZO_EPSILON
 #define MEZO_EPSILON 1.0e-2f
 #endif
 #ifndef MEZO_LEARNING_RATE
-#define MEZO_LEARNING_RATE 1.0e-4f
+#define MEZO_LEARNING_RATE 0.00004f
 #endif
 #ifndef MEZO_UPDATE_INTERVAL
-#define MEZO_UPDATE_INTERVAL 1u
+#define MEZO_UPDATE_INTERVAL 64u
 #endif
 #if MEZO_UPDATE_INTERVAL == 0
 #error "MEZO_UPDATE_INTERVAL must be greater than zero"
 #endif
 
-static void LoadTrainingSample(uint32_t sample_idx) {
-  (void)sample_idx;
-  for (uint32_t buf = 0; buf < DeeployNetwork_num_inputs; buf++) {
-    memcpy(DeeployNetwork_inputs[buf], testInputVector[buf], DeeployNetwork_inputs_bytes[buf]);
+
+
+// A static buffer to hold one input sample.
+// Ensure this size is large enough for your model's input.
+// TODO: Dynamically allocate based on model input size.
+static float32_t sample_buffer[784]; // 1*28*28 for MNIST
+
+/**
+ * @brief Reads one full input sample from stdin into a temporary buffer.
+ * @return 1 on success, 0 on failure (e.g., EOF).
+ */
+static int StreamNextSample(void) {
+  const size_t bytes_to_read = DeeployNetwork_inputs_bytes[0];
+  if (bytes_to_read > sizeof(sample_buffer)) {
+      printf("Error: sample_buffer is too small for the network input!\n");
+      return 0;
   }
+  const size_t bytes_read = fread(sample_buffer, 1, bytes_to_read, stdin);
+  if (bytes_read == 0 && feof(stdin)) return 0; // End of stream
+  if (bytes_read != bytes_to_read) {
+    printf("Error: Failed to read full sample from stdin. Read %zu/%zu bytes.\n", bytes_read, bytes_to_read);
+    return 0; // I/O error
+  }
+  return 1; // Success
+}
+
+/**
+ * @brief Copies the sample from the temporary buffer to the network's input.
+ */
+static void LoadSampleFromBuffer(void) {
+    memcpy(DeeployNetwork_inputs[0], sample_buffer, DeeployNetwork_inputs_bytes[0]);
 }
 
 static float32_t ComputeCrossEntropyLoss(const float32_t *logits, uint32_t num_classes, uint32_t target_index) {
+  
   if (num_classes == 0u) {
     return 0.0f;
   }
@@ -57,6 +84,7 @@ static float32_t ComputeCrossEntropyLoss(const float32_t *logits, uint32_t num_c
     sum += expf(logits[i] - max_logit);
   }
   float32_t log_prob = logits[target_index] - max_logit - logf(sum);
+  // printf("Max logit vs target: %.6f vs %d\n" , (float32_t)max_logit, (int)target_index);
   return -log_prob;
 }
 
@@ -75,35 +103,57 @@ int main(void) {
     uint32_t samples_in_window = 0;
     float32_t loss_plus_accum = 0.0f;
     float32_t loss_minus_accum = 0.0f;
+    float32_t total_epoch_loss_plus = 0.0f;
+    float32_t total_epoch_loss_minus = 0.0f;
     uint32_t noise_seed = (epoch + 1u) * 1315423911u;
 
     for (uint32_t sample = 0; sample < MEZO_NUM_TRAINING_SAMPLES; ++sample) {
-      LoadTrainingSample(sample);
+      if (!StreamNextSample()) {
+        printf("Stopping training: No more data in stream.\n");
+        goto end_of_epoch;
+      }
+      uint32_t current_target;
+      if (fread(&current_target, sizeof(uint32_t), 1, stdin) != 1) {
+          printf("Stopping training: Failed to read target label.\n");
+          goto end_of_epoch;
+      }
+
+      // Positive perturbation
+      LoadSampleFromBuffer();
       RunNetworkPerturbed(0, 1, noise_seed, 1); // forward pass with positive perturbation
-      // TODO: Fixme: pass targets properly.
-      float32_t lplus = ComputeCrossEntropyLoss(0, 10, sample);
+      float32_t lplus = ComputeCrossEntropyLoss((float32_t*)DeeployNetwork_output_0, 10, current_target);
+      LoadSampleFromBuffer();
       RunNetworkPerturbed(0, 1, noise_seed, 0); // forward pass with negative perturbation
-      float32_t lmin = ComputeCrossEntropyLoss(0, 10, sample);
-      printf("  Sample %u: loss+ = %.6f | loss- = %.6f\r\n",
-             (unsigned int)(sample + 1), (double)lplus, (double)lmin);
+      float32_t lmin = ComputeCrossEntropyLoss((float32_t*)DeeployNetwork_output_0, 10, current_target);
 
       loss_plus_accum += lplus;
       loss_minus_accum += lmin;
+      total_epoch_loss_plus += lplus;
+      total_epoch_loss_minus += lmin;
       samples_in_window++;
 
       if (samples_in_window == MEZO_UPDATE_INTERVAL) {
         const float32_t avg_plus = loss_plus_accum / (float32_t)samples_in_window;
         const float32_t avg_minus = loss_minus_accum / (float32_t)samples_in_window;
         const float32_t loss = avg_plus - avg_minus;
+        // printf("  Sample %u: loss+ = %.6f | loss_ = %.6f\r\n",
+        //      (unsigned int)(sample + 1), (double)avg_plus, (double)avg_minus);
         UpdateWeightsFiniteDiff(0, 1, MEZO_LEARNING_RATE, noise_seed, loss);
 
-        printf("    -> Weights updated (avg loss+ %.6f, avg loss- %.6f)\r\n",
-               avg_plus, avg_minus);
+        // printf("    -> Weights updated (avg loss+ %.6f, avg loss- %.6f)\r\n",
+        //        avg_plus, avg_minus);
         samples_in_window = 0;
         loss_plus_accum = 0.0f;
         loss_minus_accum = 0.0f;
       }
     }
+    printf("Epoch %u completed. Avg Loss+ %.6f | Avg Loss- %.6f\r\n",
+           (unsigned int)(epoch + 1),
+           (double)(total_epoch_loss_plus / (float32_t)MEZO_NUM_TRAINING_SAMPLES),
+           (double)(total_epoch_loss_minus / (float32_t)MEZO_NUM_TRAINING_SAMPLES));
+    total_epoch_loss_minus = 0.0f;
+    total_epoch_loss_plus = 0.0f;
+    end_of_epoch:;
   }
 
   return 0;

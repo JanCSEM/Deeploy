@@ -55,7 +55,7 @@ BEGIN_SINGLE_CORE
     ApplyTriangularPerturbation((const float32_t *)${data_in},
                                 (float32_t *)${data_out},
                                 seed + ${node_id},
-                                ${eps},
+                                ${eps}f,
                                 perturbation_sign, // globally defined in DeedeployTest main
                                 ${size});
 END_SINGLE_CORE
@@ -67,7 +67,7 @@ BEGIN_SINGLE_CORE
     UpdateWeightsTriangle((float32_t *)${data_in},
                                 loss,
                                 seed + ${node_id},
-                                ${eps},
+                                ${eps}f,
                                 lr, // globally defined
                                 ${size});
 END_SINGLE_CORE

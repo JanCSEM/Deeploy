@@ -3,6 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+ 
+#ifndef __DEEPLOY_BASIC_MATH_RANDOMNOISE_FP32_HEADER_
+#define __DEEPLOY_BASIC_MATH_RANDOMNOISE_FP32_HEADER_
 
 #include "DeeployBasicMath.h"
 
@@ -13,10 +16,10 @@ float32_t TriangularSample(uint32_t *state);
 
 // Applies triangular perturbation to the weights and applies rescaling to match Gaussian(0, 1) l2 norm.
 void ApplyTriangularPerturbation(const float32_t *__restrict__ pweights,
-                            float32_t *__restrict__ pweights_dest, 
+                            float32_t *__restrict__ pweights_dest,
                             uint32_t seed,
                             float32_t epsilon,
-                            int32_t dir,
+                            uint32_t dir,
                             uint32_t size);
 
 // Updates the weights in place according to the MeZO update rule with triangular noise.
@@ -30,10 +33,10 @@ void UpdateWeightsTriangle(float32_t *__restrict__ pweights,
 
 // Applies uniform perturbation to the weights and applies rescaling to match Gaussian(0, 1) l2 norm.
 void ApplyUniformPerturbation(const float32_t *__restrict__ pweights,
-                            float32_t *__restrict__ pweights_dest, 
+                            float32_t *__restrict__ pweights_dest,
                             uint32_t seed,
-                            int32_t dir,
                             float32_t epsilon,
+                            uint32_t dir,
                             uint32_t size);
 
 // Updates the weights in place according to the MeZO update rule with uniform noise.
@@ -47,3 +50,5 @@ void UpdateWeightsUniform(float32_t *__restrict__ pweights,
 
 /* Xorshift32 implementation. Most basic software PRNG*/
 uint32_t Xorshift32(uint32_t state);
+
+#endif //__DEEPLOY_BASIC_MATH_RANDOMNOISE_FP32_HEADER_

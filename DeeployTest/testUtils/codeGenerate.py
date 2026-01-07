@@ -30,84 +30,108 @@ def _shapeBroadcast(ctxt, value, name):
     return broadcastNum
 
 
-def generateTestInputsHeader(deployer: NetworkDeployer, test_inputs: List) -> str:
+def generateTestInputsHeader(deployer: NetworkDeployer, test_inputs: List, run_mode:str = "inference") -> str:
     vectors = []
     retStr = ""
-    for index, values in enumerate(test_inputs):
-        # WIESEP: Correctly handle empty arrays
-        if np.prod(values.shape) == 0:
-            continue
 
-        bufferName = f"input_{index}"
+    if run_mode == "mezo_training":
+        return """
+        #ifndef __TEST_INPUTS_H__
+        #define __TEST_INPUTS_H__
+        /*
+        * In MEZO training mode, inputs are streamed from the host via stdin.
+        * This header is intentionally left empty.
+        */
+        #endif // __TEST_INPUTS_H__
+        """
+    else:
+        for index, values in enumerate(test_inputs):
+            # WIESEP: Correctly handle empty arrays
+            if np.prod(values.shape) == 0:
+                continue
 
-        #LMACAN: We have some tests which have extra inputs and this is a hack to circumvent that
-        if not deployer.ctxt.is_buffer(bufferName):
-            continue
+            bufferName = f"input_{index}"
 
-        values = _shapeBroadcast(deployer.ctxt, values, bufferName)
+            #LMACAN: We have some tests which have extra inputs and this is a hack to circumvent that
+            if not deployer.ctxt.is_buffer(bufferName):
+                continue
 
-        buffer = deployer.ctxt.lookup(bufferName)
-        typeName = buffer._type.referencedType.typeName
-        typeWidth = buffer._type.referencedType.typeWidth
+            values = _shapeBroadcast(deployer.ctxt, values, bufferName)
 
-        vectorName = f"testInputVector{index}"
-        vectors.append(vectorName)
+            buffer = deployer.ctxt.lookup(bufferName)
+            typeName = buffer._type.referencedType.typeName
+            typeWidth = buffer._type.referencedType.typeWidth
 
-        retStr += f"{typeName} {vectorName}[] ="
-        retStr += "{"
-        if typeName == 'float32_t':
-            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
-        else:
-            list_str = (", ").join([str(x) for x in values])
+            vectorName = f"testInputVector{index}"
+            vectors.append(vectorName)
 
-        # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
-        total_bytes = (values.size * typeWidth) // 8
-        pad_bytes = (-total_bytes) % 4
-        if pad_bytes:
-            paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
-            list_str += ", " + (", ").join("0" for _ in range(paddingElements))
+            retStr += f"{typeName} {vectorName}[] ="
+            retStr += "{"
+            if typeName == 'float32_t':
+                list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
+            else:
+                list_str = (", ").join([str(x) for x in values])
 
-        retStr += list_str
+            # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
+            total_bytes = (values.size * typeWidth) // 8
+            pad_bytes = (-total_bytes) % 4
+            if pad_bytes:
+                paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
+                list_str += ", " + (", ").join("0" for _ in range(paddingElements))
+
+            retStr += list_str
+            retStr += "};\n"
+
+        retStr += f"void* testInputVector[{len(vectors)}] = {{"
+        retStr += ", ".join(vectors)
         retStr += "};\n"
-
-    retStr += f"void* testInputVector[{len(vectors)}] = {{"
-    retStr += ", ".join(vectors)
-    retStr += "};\n"
 
     return retStr
 
 
-def generateTestOutputsHeader(deployer: NetworkDeployer, test_outputs: List[np.ndarray]) -> str:
+def generateTestOutputsHeader(deployer: NetworkDeployer, test_outputs: List[np.ndarray], run_mode:str = "inference") -> str:
     retStr = ""
-    for index, values in enumerate(test_outputs):
-        typeName = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeName
-        typeWidth = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeWidth
+    if run_mode == "mezo_training":
+        return """
+        #ifndef __TEST_INPUTS_H__
+        #define __TEST_INPUTS_H__
+        /*
+        * In MEZO training mode, inputs are streamed from the host via stdin.
+        * This header is intentionally left empty.
+        */
+        #endif // __TEST_INPUTS_H__
+        """
 
-        retStr += f"#define OUTPUTTYPE {typeName}\n"
-        retStr += f"#define ISOUTPUTFLOAT {int(typeName == 'float32_t')}\n"
-        retStr += f"{typeName} testOutputVector{index}[] ="
-        retStr += "{"
+    else:
+        for index, values in enumerate(test_outputs):
+            typeName = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeName
+            typeWidth = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeWidth
 
-        values = values.flatten()
+            retStr += f"#define OUTPUTTYPE {typeName}\n"
+            retStr += f"#define ISOUTPUTFLOAT {int(typeName == 'float32_t')}\n"
+            retStr += f"{typeName} testOutputVector{index}[] ="
+            retStr += "{"
 
-        if typeName == "float32_t":
-            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
-        else:
-            list_str = (", ").join([str(x) for x in values])
+            values = values.flatten()
 
-        # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
-        total_bytes = (len(values) * typeWidth) // 8
-        pad_bytes = (-total_bytes) % 4
-        if pad_bytes:
-            paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
-            list_str += ", " + (", ").join("0" for _ in range(paddingElements))
+            if typeName == "float32_t":
+                list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
+            else:
+                list_str = (", ").join([str(x) for x in values])
 
-        retStr += list_str
+            # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
+            total_bytes = (len(values) * typeWidth) // 8
+            pad_bytes = (-total_bytes) % 4
+            if pad_bytes:
+                paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
+                list_str += ", " + (", ").join("0" for _ in range(paddingElements))
+
+            retStr += list_str
+            retStr += "};\n"
+
+        retStr += f"void* testOutputVector[{len(test_outputs)}] = " + "{"
+        retStr += ", ".join([f"testOutputVector{idx}" for idx, _ in enumerate(test_outputs)])
         retStr += "};\n"
-
-    retStr += f"void* testOutputVector[{len(test_outputs)}] = " + "{"
-    retStr += ", ".join([f"testOutputVector{idx}" for idx, _ in enumerate(test_outputs)])
-    retStr += "};\n"
 
     return retStr
 
@@ -144,18 +168,18 @@ def generateTestNetworkHeader(deployer: NetworkDeployer, run_mode: str = "infere
     elif run_mode == "mezo_training":
         if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
             retStr += """
-            void RunNetworkPerturbed(uint32_t seed, uint8_t perturbation_sign);
+            void RunNetworkPerturbed(uint32_t seed, uint32_t perturbation_sign);
             void UpdateWeightsFiniteDiff(float32_t lr, uint32_t seed, float32_t loss);
             void InitNetwork();
             """
         else:
             retStr += """
-            void RunNetworkPerturbed(uint32_t core_id, 
-                                    uint32_t numThreads, 
+            void RunNetworkPerturbed(uint32_t core_id,
+                                    uint32_t numThreads,
                                     uint32_t seed,
-                                    uint8_t perturbation_sign);
-            void UpdateWeightsFiniteDiff(uint32_t core_id, 
-                                        uint32_t numThreads, 
+                                    uint32_t perturbation_sign);
+            void UpdateWeightsFiniteDiff(uint32_t core_id,
+                                        uint32_t numThreads,
                                         float32_t lr,
                                         uint32_t seed,
                                         float32_t loss);
@@ -184,7 +208,7 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer,
     retStr += """
 
     #include "Network.h"
-    
+
     """
     retStr += deployer.generateBufferInitializationCode()
     retStr += deployer.generateGlobalDefinitionCode()
@@ -223,9 +247,9 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer,
         else:
             retStr += """
             void RunNetworkPerturbed(__attribute__((unused)) uint32_t core_id,
-                                    __attribute__((unused)) uint32_t numThreads, 
-                                    uint32_t seed, 
-                                    uint8_t perturbation_sign){
+                                    __attribute__((unused)) uint32_t numThreads,
+                                    uint32_t seed,
+                                    uint32_t perturbation_sign){
             """
             retStr += deployer.generateInferenceInitializationCode()
             retStr += deployer.generateFunction(verbosityCfg)
@@ -249,7 +273,7 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer,
         raise RuntimeError(f"Unsupported run mode '{run_mode}'")
 
     if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
-       
+
         retStr += """
         void InitNetwork(){
         """
@@ -328,11 +352,11 @@ def generateTestNetwork(deployer: NetworkDeployer, test_inputs: List[np.ndarray]
     # Create input and output vectors
     os.makedirs(dumpdir, exist_ok = True)
 
-    testInputStr = generateTestInputsHeader(deployer, test_inputs)
+    testInputStr = generateTestInputsHeader(deployer, test_inputs, run_mode)
     with open(f'{dumpdir}/testinputs.h', "w") as f:
         f.write(testInputStr)
 
-    testOutputStr = generateTestOutputsHeader(deployer, test_outputs)
+    testOutputStr = generateTestOutputsHeader(deployer, test_outputs, run_mode)
     with open(f'{dumpdir}/testoutputs.h', "w") as f:
         f.write(testOutputStr)
 

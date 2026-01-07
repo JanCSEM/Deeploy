@@ -44,6 +44,7 @@
 #include "kernel/MatMul.h"
 #include "kernel/MaxPool.h"
 #include "kernel/MaxPool1d.h"
+#include "kernel/RandomNoise_fp32.h"
 #include "kernel/RMSNorm.h"
 #include "kernel/RQDiv.h"
 #include "kernel/RQGELU.h"
