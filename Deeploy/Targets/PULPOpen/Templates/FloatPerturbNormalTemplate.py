@@ -19,6 +19,7 @@ class _FloatPerturbNormalTemplate(NodeTemplate):
         return ctxt, operatorRepresentation, []
 
 
+# TODO: No loop unrolling optimization yet
 referenceTemplate = _FloatPerturbNormalTemplate("""
 // PerturbNormal (Name: ${nodeName}, Op: ${nodeOp})
 uint8_t ${nodeName}_core_id = (uint8_t) pi_core_id();
@@ -32,8 +33,8 @@ uint32_t i = ${nodeName}_chunk_start;
 for (; i < ${nodeName}_chunk_stop; i++) {
     // pick large enough stride to minimize correlation between nodes.
     uint32_t chunk_seed = seed + i*${nodeName}_chunk_start + (${node_id} * 104729);
-    ApplyTriangularPerturbation((const float32_t *)${data_in}[i],
-                                (float32_t *)${data_out}[i],
+    ApplyTriangularPerturbation((const float32_t *)  &${data_in}[i],
+                                (float32_t *) &${data_out}[i],
                                 chunk_seed,
                                 ${eps}f,
                                 perturbation_sign, // globally defined in DeedeployTest main

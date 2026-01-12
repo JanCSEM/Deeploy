@@ -236,16 +236,35 @@ def _NCHWtoNHWC_fun(graph: gs.Graph, match: Match, name: str, default_channels_f
         else:
             raise ValueError(f"Cannot determine spatialDims for node {node.name} with operator {node.op}")
 
+        # Transpose the input activation tensor
         permuteIn = _transformLayoutPermutation(len(tensorIn.shape), spatialDims, default_channels_first)
         graph.nodes.append(_appendTranspose(tensorIn, node, permuteIn))
 
+        # Transpose the output activation tensor
         permuteOut = _transformLayoutPermutation(len(tensorOut.shape), spatialDims, channels_first)
         graph.nodes.append(_prependTranspose(tensorOut, node, permuteOut))
 
         if node.op in ["Conv", "RequantizedConv"]:
-            # In the case of Conv: [weights, opt. bias], RequantizedConv: [weights, mul, add, opt. shift]
+            # This loop handles all constant-like inputs (weights, bias, etc.)
             for tensor in node.inputs[1:]:
-                _transformLayoutConst(tensor, spatialDims, default_channels_first)
+                const_to_transform = tensor
+
+                # MeZO case: If the input is a variable, we must find its producer node.
+                if isinstance(tensor, gs.Variable):
+                    # Search the graph to find the node that produces this tensor.
+                    producer_node = None
+                    for n in graph.nodes:
+                        if tensor in n.outputs:
+                            producer_node = n
+                            break
+                    
+                    if producer_node and producer_node.op in ["PerturbNormal", "PerturbUniform"]:
+                        # The actual constant is the input to the producer node.
+                        const_to_transform = producer_node.inputs[0]
+
+                # Call the transformation function on the correctly identified constant.
+                _transformLayoutConst(const_to_transform, spatialDims, default_channels_first)
+
 
         node.attrs["channels_first"] = default_channels_first
 

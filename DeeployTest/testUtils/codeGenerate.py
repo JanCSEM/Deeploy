@@ -30,108 +30,84 @@ def _shapeBroadcast(ctxt, value, name):
     return broadcastNum
 
 
-def generateTestInputsHeader(deployer: NetworkDeployer, test_inputs: List, run_mode:str = "inference") -> str:
+def generateTestInputsHeader(deployer: NetworkDeployer, test_inputs: List) -> str:
     vectors = []
     retStr = ""
+    for index, values in enumerate(test_inputs):
+        # WIESEP: Correctly handle empty arrays
+        if np.prod(values.shape) == 0:
+            continue
 
-    if run_mode == "mezo_training":
-        return """
-        #ifndef __TEST_INPUTS_H__
-        #define __TEST_INPUTS_H__
-        /*
-        * In MEZO training mode, inputs are streamed from the host via stdin.
-        * This header is intentionally left empty.
-        */
-        #endif // __TEST_INPUTS_H__
-        """
-    else:
-        for index, values in enumerate(test_inputs):
-            # WIESEP: Correctly handle empty arrays
-            if np.prod(values.shape) == 0:
-                continue
+        bufferName = f"input_{index}"
 
-            bufferName = f"input_{index}"
+        #LMACAN: We have some tests which have extra inputs and this is a hack to circumvent that
+        if not deployer.ctxt.is_buffer(bufferName):
+            continue
 
-            #LMACAN: We have some tests which have extra inputs and this is a hack to circumvent that
-            if not deployer.ctxt.is_buffer(bufferName):
-                continue
+        values = _shapeBroadcast(deployer.ctxt, values, bufferName)
 
-            values = _shapeBroadcast(deployer.ctxt, values, bufferName)
+        buffer = deployer.ctxt.lookup(bufferName)
+        typeName = buffer._type.referencedType.typeName
+        typeWidth = buffer._type.referencedType.typeWidth
 
-            buffer = deployer.ctxt.lookup(bufferName)
-            typeName = buffer._type.referencedType.typeName
-            typeWidth = buffer._type.referencedType.typeWidth
+        vectorName = f"testInputVector{index}"
+        vectors.append(vectorName)
 
-            vectorName = f"testInputVector{index}"
-            vectors.append(vectorName)
+        retStr += f"{typeName} {vectorName}[] ="
+        retStr += "{"
+        if typeName == 'float32_t':
+            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
+        else:
+            list_str = (", ").join([str(x) for x in values])
 
-            retStr += f"{typeName} {vectorName}[] ="
-            retStr += "{"
-            if typeName == 'float32_t':
-                list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
-            else:
-                list_str = (", ").join([str(x) for x in values])
+        # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
+        total_bytes = (values.size * typeWidth) // 8
+        pad_bytes = (-total_bytes) % 4
+        if pad_bytes:
+            paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
+            list_str += ", " + (", ").join("0" for _ in range(paddingElements))
 
-            # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
-            total_bytes = (values.size * typeWidth) // 8
-            pad_bytes = (-total_bytes) % 4
-            if pad_bytes:
-                paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
-                list_str += ", " + (", ").join("0" for _ in range(paddingElements))
-
-            retStr += list_str
-            retStr += "};\n"
-
-        retStr += f"void* testInputVector[{len(vectors)}] = {{"
-        retStr += ", ".join(vectors)
+        retStr += list_str
         retStr += "};\n"
+
+    retStr += f"void* testInputVector[{len(vectors)}] = {{"
+    retStr += ", ".join(vectors)
+    retStr += "};\n"
 
     return retStr
 
 
-def generateTestOutputsHeader(deployer: NetworkDeployer, test_outputs: List[np.ndarray], run_mode:str = "inference") -> str:
+def generateTestOutputsHeader(deployer: NetworkDeployer, test_outputs: List[np.ndarray]) -> str:
     retStr = ""
-    if run_mode == "mezo_training":
-        return """
-        #ifndef __TEST_INPUTS_H__
-        #define __TEST_INPUTS_H__
-        /*
-        * In MEZO training mode, inputs are streamed from the host via stdin.
-        * This header is intentionally left empty.
-        */
-        #endif // __TEST_INPUTS_H__
-        """
+    for index, values in enumerate(test_outputs):
+        typeName = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeName
+        typeWidth = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeWidth
 
-    else:
-        for index, values in enumerate(test_outputs):
-            typeName = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeName
-            typeWidth = deployer.ctxt.lookup(f'output_{index}')._type.referencedType.typeWidth
+        retStr += f"#define OUTPUTTYPE {typeName}\n"
+        retStr += f"#define ISOUTPUTFLOAT {int(typeName == 'float32_t')}\n"
+        retStr += f"{typeName} testOutputVector{index}[] ="
+        retStr += "{"
 
-            retStr += f"#define OUTPUTTYPE {typeName}\n"
-            retStr += f"#define ISOUTPUTFLOAT {int(typeName == 'float32_t')}\n"
-            retStr += f"{typeName} testOutputVector{index}[] ="
-            retStr += "{"
+        values = values.flatten()
 
-            values = values.flatten()
+        if typeName == "float32_t":
+            list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
+        else:
+            list_str = (", ").join([str(x) for x in values])
 
-            if typeName == "float32_t":
-                list_str = (", ").join([f'{x}f' if not (np.isinf(x) or np.isnan(x)) else str(x) for x in values])
-            else:
-                list_str = (", ").join([str(x) for x in values])
+        # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
+        total_bytes = (len(values) * typeWidth) // 8
+        pad_bytes = (-total_bytes) % 4
+        if pad_bytes:
+            paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
+            list_str += ", " + (", ").join("0" for _ in range(paddingElements))
 
-            # WIESEP: Arrays have to be 4 byte aligned (at least in banshee)
-            total_bytes = (len(values) * typeWidth) // 8
-            pad_bytes = (-total_bytes) % 4
-            if pad_bytes:
-                paddingElements = (pad_bytes * 8 + typeWidth - 1) // typeWidth
-                list_str += ", " + (", ").join("0" for _ in range(paddingElements))
-
-            retStr += list_str
-            retStr += "};\n"
-
-        retStr += f"void* testOutputVector[{len(test_outputs)}] = " + "{"
-        retStr += ", ".join([f"testOutputVector{idx}" for idx, _ in enumerate(test_outputs)])
+        retStr += list_str
         retStr += "};\n"
+
+    retStr += f"void* testOutputVector[{len(test_outputs)}] = " + "{"
+    retStr += ", ".join([f"testOutputVector{idx}" for idx, _ in enumerate(test_outputs)])
+    retStr += "};\n"
 
     return retStr
 
@@ -150,7 +126,8 @@ def generateTestNetworkHeader(deployer: NetworkDeployer, run_mode: str = "infere
 
     if run_mode == "mezo_training":
         retStr += """
-        #define MEZO_TRAINING
+        #define MEZO
+        
         """
     retStr += deployer.generateIncludeString()
 
@@ -168,21 +145,14 @@ def generateTestNetworkHeader(deployer: NetworkDeployer, run_mode: str = "infere
     elif run_mode == "mezo_training":
         if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
             retStr += """
-            void RunNetworkPerturbed(uint32_t seed, uint32_t perturbation_sign);
-            void UpdateWeightsFiniteDiff(float32_t lr, uint32_t seed, float32_t loss);
+            void RunNetwork();
             void InitNetwork();
+            static const uint32_t seed = 42;
+            static const uint32_t perturbation_sign = 1;
             """
         else:
             retStr += """
-            void RunNetworkPerturbed(uint32_t core_id,
-                                    uint32_t numThreads,
-                                    uint32_t seed,
-                                    uint32_t perturbation_sign);
-            void UpdateWeightsFiniteDiff(uint32_t core_id,
-                                        uint32_t numThreads,
-                                        float32_t lr,
-                                        uint32_t seed,
-                                        float32_t loss);
+            void RunNetwork(uint32_t core_id, uint32_t numThreads);
             void InitNetwork(uint32_t core_id, uint32_t numThreads);
             """
     else:
@@ -215,63 +185,26 @@ def generateTestNetworkImplementation(deployer: NetworkDeployer,
 
     # WIESEP: Mempool assigns section attributes to intermediate buffers to allow .
 
-    if run_mode == "inference":
-        if isinstance(deployer.Platform, MemPoolPlatform):
-            retStr += deployer.generateInferenceInitializationCode()
-            retStr += """
-            void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
-            """
-        elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
-            retStr += """
-            void RunNetwork(){
-            """
-            retStr += deployer.generateInferenceInitializationCode()
-        else:
-            retStr += """
-            void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
-            """
-            retStr += deployer.generateInferenceInitializationCode()
-        retStr += deployer.generateFunction(verbosityCfg)
+    if isinstance(deployer.Platform, MemPoolPlatform):
+        retStr += deployer.generateInferenceInitializationCode()
         retStr += """
-        }
+        void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
         """
-    elif run_mode == "mezo_training":
-        if isinstance(deployer.Platform, MemPoolPlatform):
-            raise NotImplementedError("Mezo training not supported on MemPoolPlatform yet")
-        elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
-            # retStr += """
-            # void RunNetworkPerturbed(uint8_t perturbation_sign){
-            # """
-            # retStr += deployer.generateInferenceInitializationCode()
-            raise NotImplementedError("Mezo training not supported on PULPPlatform yet")
-        else:
-            retStr += """
-            void RunNetworkPerturbed(__attribute__((unused)) uint32_t core_id,
-                                    __attribute__((unused)) uint32_t numThreads,
-                                    uint32_t seed,
-                                    uint32_t perturbation_sign){
-            """
-            retStr += deployer.generateInferenceInitializationCode()
-            retStr += deployer.generateFunction(verbosityCfg)
-            retStr += """
-            }
-            """
-            retStr += """
-            void UpdateWeightsFiniteDiff(__attribute__((unused)) uint32_t core_id,
-                                        __attribute__((unused)) uint32_t numThreads,
-                                        float32_t lr,
-                                        uint32_t seed,
-                                        float32_t loss){
-            """
-            # TODO: Check correctness.
-            retStr += deployer.generateInferenceInitializationCode()
-            retStr += deployer.generateUpdateFunction()
-            retStr += """
-            }
-            """
+    elif isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
+        retStr += """
+        void RunNetwork(){
+        """
+        retStr += deployer.generateInferenceInitializationCode()
     else:
-        raise RuntimeError(f"Unsupported run mode '{run_mode}'")
-
+        retStr += """
+        void RunNetwork(__attribute__((unused)) uint32_t core_id, __attribute__((unused)) uint32_t numThreads){
+        """
+        retStr += deployer.generateInferenceInitializationCode()
+    retStr += deployer.generateFunction(verbosityCfg)
+    retStr += """
+    }
+    """
+  
     if isinstance(deployer.Platform, (PULPPlatform, MemoryPULPPlatform, MemoryPULPPlatformWrapper)):
 
         retStr += """
@@ -352,11 +285,11 @@ def generateTestNetwork(deployer: NetworkDeployer, test_inputs: List[np.ndarray]
     # Create input and output vectors
     os.makedirs(dumpdir, exist_ok = True)
 
-    testInputStr = generateTestInputsHeader(deployer, test_inputs, run_mode)
+    testInputStr = generateTestInputsHeader(deployer, test_inputs)
     with open(f'{dumpdir}/testinputs.h', "w") as f:
         f.write(testInputStr)
 
-    testOutputStr = generateTestOutputsHeader(deployer, test_outputs, run_mode)
+    testOutputStr = generateTestOutputsHeader(deployer, test_outputs)
     with open(f'{dumpdir}/testoutputs.h', "w") as f:
         f.write(testOutputStr)
 
