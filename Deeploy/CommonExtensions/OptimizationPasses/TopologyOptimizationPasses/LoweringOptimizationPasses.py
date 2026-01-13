@@ -249,9 +249,11 @@ def _NCHWtoNHWC_fun(graph: gs.Graph, match: Match, name: str, default_channels_f
             for tensor in node.inputs[1:]:
                 const_to_transform = tensor
 
-                # MeZO case: If the input is a variable, we must find its producer node.
-                if isinstance(tensor, gs.Variable):
-                    # Search the graph to find the node that produces this tensor.
+                # Standard case: The weight is a direct constant input.
+                if isinstance(tensor, gs.Constant):
+                    const_to_transform = tensor
+                # MeZO case: The weight is produced by a Perturb node.
+                elif isinstance(tensor, gs.Variable):
                     producer_node = None
                     for n in graph.nodes:
                         if tensor in n.outputs:
@@ -259,13 +261,17 @@ def _NCHWtoNHWC_fun(graph: gs.Graph, match: Match, name: str, default_channels_f
                             break
                     
                     if producer_node and producer_node.op in ["PerturbNormal", "PerturbUniform"]:
-                        # The actual constant is the input to the producer node.
+                        # Find the original constant that feeds the Perturb node.
                         const_to_transform = producer_node.inputs[0]
 
-                # Call the transformation function on the correctly identified constant.
-                _transformLayoutConst(const_to_transform, spatialDims, default_channels_first)
-
-
+                # If we found a constant, transpose it. The Perturb node will inherit the new layout.
+                if const_to_transform and isinstance(const_to_transform, gs.Constant):
+                     # Only apply layout transformation to multi-dimensional tensors (i.e., weights)
+                    if len(const_to_transform.shape) > 1:
+                        _transformLayoutConst(const_to_transform, spatialDims, default_channels_first)
+                    # also transpose the output of the node...
+                    if producer_node:
+                        tensor.shape = tuple(const_to_transform.shape)
         node.attrs["channels_first"] = default_channels_first
 
     return graph

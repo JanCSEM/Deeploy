@@ -439,12 +439,12 @@ BasicDequantBindings = [
 
 PULPPerturbNormalBindings = [
     NodeBinding(
-        PerturbNormalChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
+        PerturbNormalChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
         FloatPerturbNormalTemplate.referenceTemplate,
         ForkTransformer)]
 
 PULPPerturbUniformBindings = [
     NodeBinding(
-        PerturbUniformChecker([PointerClass(float32_t)], [PointerClass(float32_t)]), #seed, output
+        PerturbUniformChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
         FloatPerturbUniformTemplate.referenceTemplate,
         ForkTransformer)]

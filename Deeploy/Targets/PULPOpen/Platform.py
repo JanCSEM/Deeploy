@@ -31,7 +31,7 @@ from Deeploy.Targets.Generic.TopologyOptimizationPasses.Passes import DequantPat
     MergeConstAddAndRequantPass, MergeTrueIntegerDivRequantShiftPass, QuantPatternPass, RQSSplitPass, \
     SkipEmptyConcatPass, SkipUnityRequantPass, iGELURequantMergePass, iHardswishRequantMergePass
 from Deeploy.Targets.PULPOpen.Bindings import BasicDequantBindings, BasicQuantBindings, PULPConv1DBinding, \
-    PULPDMASliceBindings, PULPDWConv1DBinding, PULPPerturbNormalBindings, PULPPerturbUniformBindings
+    PULPDMASliceBindings, PULPDWConv1DBinding
 from Deeploy.Targets.PULPOpen.Layers import PULPRQSConvLayer, PULPRQSGEMMLayer
 from Deeploy.Targets.PULPOpen.Parsers import PULPConv1DParser, PULPConv2DParser, PULPDWConv1DParser, \
     PULPDWConv2DParser, PULPFPConv2DParser, PULPFPDWConv2DParser, PULPGEMMParser, PULPMatrixVecParser, \
@@ -48,7 +48,8 @@ from Deeploy.Targets.PULPOpen.Tiler import PULPAddTilingReadyBindings, PULPConca
     PULPRQSMatrixVecTilingReadyBindings, PULPRQSTallGEMMTilingReadyBindings, PULPRQSTilingReadyBindings, \
     PULPSGDTilingReadyBindings, PULPSliceTilingReadyBindings, PULPSoftmaxCrossEntropyGradTilingReadyBindings, \
     PULPSoftmaxCrossEntropyTilingReadyBindings, PULPSoftmaxGradTilingReadyBindings, PULPSoftmaxTilingReadyBindings, \
-    PULPTransposeTilingReadyBindings, PULPUniformRQSTilingReadyBindings
+    PULPTransposeTilingReadyBindings, PULPUniformRQSTilingReadyBindings, \
+    PULPPerturbNormalTilingReadyBindings, PULPPerturbUniformTilingReadyBindings
 from Deeploy.Targets.PULPOpen.TopologyOptimizationPasses.Passes import PULPAddRequantMergePass, \
     PULPConvRequantMergePass, PULPGEMMRequantMergePass, PULPMatMulRequantMergePass
 
@@ -89,6 +90,8 @@ ReluMapper = NodeMapper(ReluParser(), PULPReluTilingReadyBindings)
 SoftmaxMapper = NodeMapper(SoftmaxParser(), PULPSoftmaxTilingReadyBindings)
 SoftmaxGradMapper = NodeMapper(SoftmaxGradParser(), PULPSoftmaxGradTilingReadyBindings)
 Softmax_int8_Mapper = NodeMapper(iSoftmaxParser(), PULPSoftmaxTilingReadyBindings)
+PerturbNormalMapper = NodeMapper(PerturbNormalParser(), PULPPerturbNormalTilingReadyBindings)
+PerturbUniformMapper = NodeMapper(PerturbUniformParser(), PULPPerturbUniformTilingReadyBindings)
 
 ConcatMapper = NodeMapper(ConcatParser(), PULPConcatTilingReadyBindings)
 
@@ -107,8 +110,7 @@ SGDMapper = NodeMapper(SGDParser(), PULPSGDTilingReadyBindings)
 QuantMapper = NodeMapper(QuantParser(), BasicQuantBindings)
 DequantMapper = NodeMapper(DequantParser(), BasicDequantBindings)
 GEMMDequantMapper = NodeMapper(PULPGEMMParser(), BasicGEMMBindings)
-PerturbNormalMapper = NodeMapper(PerturbNormalParser(), PULPPerturbNormalBindings)
-PerturbUniformMapper = NodeMapper(PerturbUniformParser(), PULPPerturbUniformBindings)
+
 
 PULPMapping = {
     'Conv': ConvLayer([FPConv2DMapper, FPDWConv2DMapper]),
