@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 from Deeploy.DeeployTypes import NetworkContext, NodeTemplate, OperatorRepresentation
 
 
-class _FloatPerturbUniformTemplate(NodeTemplate):
+class _FloatPerturbRademacherTemplate(NodeTemplate):
 
     def __init__(self, templateStr):
         super().__init__(templateStr)
@@ -19,8 +19,8 @@ class _FloatPerturbUniformTemplate(NodeTemplate):
         return ctxt, operatorRepresentation, []
 
 
-referenceTemplate = _FloatPerturbUniformTemplate("""
-// PerturbUniform (Name: ${nodeName}, Op: ${nodeOp})
+referenceTemplate = _FloatPerturbRademacherTemplate("""
+// PerturbRademacher (Name: ${nodeName}, Op: ${nodeOp})
 uint8_t ${nodeName}_core_id = (uint8_t) pi_core_id();
 uint8_t ${nodeName}_log2Core = (uint8_t) log2(NUM_CORES);
 uint32_t ${nodeName}_chunk = (${size} >> ${nodeName}_log2Core) + ((${size} & (NUM_CORES-1))!=0);
@@ -32,7 +32,7 @@ uint32_t i = ${nodeName}_chunk_start;
 for (; i < ${nodeName}_chunk_stop; i++) {
     // pick large enough stride to minimize correlation between nodes.
     uint32_t chunk_seed = seed + i*${nodeName}_chunk_start + (${node_id} * 104729);
-    ApplyUniformPerturbation((const float32_t *)  &${data_in}[i],
+    ApplyRademacherPerturbation((const float32_t *)  &${data_in}[i],
                                 (float32_t *) &${data_out}[i],
                                 chunk_seed,
                                 ${eps}f,

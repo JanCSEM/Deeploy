@@ -33,23 +33,12 @@ uint32_t i = ${nodeName}_chunk_start;
 for (; i < ${nodeName}_chunk_stop; i++) {
     // pick large enough stride to minimize correlation between nodes.
     uint32_t chunk_seed = seed + i*${nodeName}_chunk_start + (${node_id} * 104729);
-    ApplyTriangularPerturbation((const float32_t *)  &${data_in}[i],
+    ApplyGaussianPerturbation((const float32_t *)  &${data_in}[i],
                                 (float32_t *) &${data_out}[i],
                                 chunk_seed,
                                 ${eps}f,
                                 perturbation_sign, // globally defined in DeedeployTest main
                                 ${nodeName}_local_size);
 }
-""")
-
-updateTemplate = _FloatPerturbNormalTemplate("""
-// UpdateNormal (Name: ${nodeName}, Op: ${nodeOp})
-BEGIN_SINGLE_CORE
-    UpdateWeightsTriangle((float32_t *)${data_in},
-                                loss,
-                                seed + ${node_id},
-                                ${eps}f,
-                                lr, // globally defined
-                                ${size});
-END_SINGLE_CORE
-""")
+"""
+)
