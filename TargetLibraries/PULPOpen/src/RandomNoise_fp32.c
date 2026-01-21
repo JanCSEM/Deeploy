@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "DeeployBasicMath.h"
+#include "DeeployPULPMath.h"
 #include <math.h>
-
 
 
 // TODO: 1) loop unrolling for ILP perf
@@ -46,12 +45,6 @@ float32_t GaussianSample(uint32_t *state) {
     float32_t u2 = (float32_t)(*state) / (float32_t)0xFFFFFFFF; // in [0,1]
     return sqrtf(-2.0f * logf(u1)) * cosf(2.0f * PI_F * u2);
 }
-
-typedef struct {
-    uint32_t state;
-    uint32_t bits;
-    int bitpos;
-} RademacherRNG;
 
 void RademacherRNG_init(RademacherRNG *rng, uint32_t seed) {
     rng->state = seed;
@@ -128,7 +121,7 @@ void ApplyRademacherPerturbation(const float32_t *__restrict__ pweights,
                             float32_t epsilon,
                             uint32_t dir,
                             uint32_t size) {
-    uint32_t rng_state = (seed * 1664525u) + 1013904223u;
+    RademacherRNG rng_state = { (seed * 1664525u) + 1013904223u, 0, 32 };
     float32_t sqrt3 = 1.73205080757f;
     float32_t scale = epsilon; // rademacher naturally has variance 1
     if (dir == 0) {scale *= -1.0f;}
@@ -177,11 +170,9 @@ void UpdateWeightsGaussian(float32_t *__restrict__ pweights,
                             float32_t lr,
                             uint32_t size) {
     uint32_t rng_state = (seed * 1664525u) + 1013904223u;
-    float32_t sqrt3 = 1.73205080757f;
-    const float32_t scale = sqrt3 * 2.0f; // factor 2: [-0.5,0.5] => [-1,1], sqrt(3): => variance 1
     for (uint32_t i = 0; i < size; ++i) {
         float32_t u = GaussianSample(&rng_state);
-        pweights[i] = pweights[i] - lr * loss/(2.0f * epsilon) * u * scale;
+        pweights[i] = pweights[i] - lr * loss/(2.0f * epsilon) * u;
     }
 }
 
@@ -191,11 +182,9 @@ void UpdateWeightsRademacher(float32_t *__restrict__ pweights,
                             float32_t epsilon,
                             float32_t lr,
                             uint32_t size) {
-    uint32_t rng_state = (seed * 1664525u) + 1013904223u;
-    float32_t sqrt3 = 1.73205080757f;
-    const float32_t scale = sqrt3 * 2.0f; // factor 2: [-0.5,0.5] => [-1,1], sqrt(3): => variance 1
+    RademacherRNG rng_state = { (seed * 1664525u) + 1013904223u, 0, 32 };
     for (uint32_t i = 0; i < size; ++i) {
         float32_t u = RademacherSample(&rng_state);
-        pweights[i] = pweights[i] - lr * loss/(2.0f * epsilon) * u * scale;
+        pweights[i] = pweights[i] - lr * loss/(2.0f * epsilon) * u;
     }
 }

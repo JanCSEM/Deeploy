@@ -2799,10 +2799,15 @@ class PerturbUniformParser(NodeParser):
                       node: gs.Node,
                       channels_first: bool = True) -> Tuple[NetworkContext, bool]:
 
-        output = ctxt.lookup(node.outputs[0].name)
-        input = ctxt.lookup(node.inputs[0].name)
+        data_in = ctxt.lookup(node.inputs[0].name)
+        data_out = ctxt.lookup(node.outputs[0].name)
+        input_shape = data_in.shape
+        if isinstance(data_in.shape, int):
+            input_shape = tuple(input_shape, )
+        self.operatorRepresentation['data_in'] = data_in.name
+        self.operatorRepresentation['data_out'] = data_out.name
         self.operatorRepresentation['seed'] = node.attrs['seed']
-        self.operatorRepresentation['size'] = np.prod(self.operatorRepresentation['noise_shape'])
+        self.operatorRepresentation['size'] = np.prod(input_shape)
         self.operatorRepresentation['nodeIdx'] = node.attrs['idx']
         self.operatorRepresentation['eps'] = node.attrs['eps']
         self.operatorRepresentation['low'] = float(node.attrs['low'])
