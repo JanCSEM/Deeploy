@@ -8,8 +8,8 @@ from typing import Tuple
 import onnx_graphsurgeon as gs
 
 from Deeploy.DeeployTypes import NetworkContext
-from Deeploy.Targets.Generic.Parsers import Conv2DParser, GEMMParser, RQSConv1DParser, RQSConv2DParser, \
-    RQSParserInterface
+from Deeploy.Targets.Generic.Parsers import Conv2DParser, Conv1DParser, \
+    GEMMParser, RQSConv1DParser, RQSConv2DParser, RQSParserInterface
 
 
 class PULPConv2DParser(RQSConv2DParser):
@@ -91,6 +91,60 @@ class PULPFPConv2DParser(Conv2DParser):
             self.operatorRepresentation['padding_y_bottom'] = int(self.operatorRepresentation['pads'][2])
             self.operatorRepresentation['padding_x_right'] = int(self.operatorRepresentation['pads'][3])
 
+            return ret
+        return False
+
+    def parseNodeCtxt(self,
+                      ctxt: NetworkContext,
+                      node: gs.Node,
+                      channels_first: bool = True) -> Tuple[NetworkContext, bool]:
+
+        newCtxt, ret = super().parseNodeCtxt(ctxt, node, channels_first)
+
+        if ret:
+            # Set inputs names
+            inputs = ['data_in', 'weight']
+
+            # Handle bias, if present
+            if len(node.inputs) == 2:
+                self.operatorRepresentation["has_bias"] = "false"
+                self.operatorRepresentation["bias"] = "NULL"
+            else:
+                inputs.append("bias")
+                self.operatorRepresentation["has_bias"] = "true"
+
+            for idx, inputNode in enumerate(node.inputs):
+                self.operatorRepresentation[inputs[idx]] = ctxt.lookup(inputNode.name).name
+
+            return newCtxt, True
+
+        return ctxt, False
+
+
+class PULPFPConv1DParser(Conv1DParser):
+
+    def __init__(self, noBiasHoisting = True):
+        super().__init__(noBiasHoisting)
+
+    def parseNode(self, node: gs.Node) -> (bool):
+
+        wellFormed = super().parseNode(node)
+        if wellFormed:
+            ret = all([
+                # Current PULP kernel only supports grouping of 1
+                self.operatorRepresentation['group'] == 1,
+                
+                # Make sure padding is square
+                self.operatorRepresentation['pads'][0] == self.operatorRepresentation['pads'][1],
+
+                # Check number of inputs
+                # 2 inputs if no bias, 3 if layer has bias
+                len(node.inputs) in [2, 3],
+            ])
+
+            # Extract additional attributes
+            self.operatorRepresentation['padding_y_top'] = int(self.operatorRepresentation['pads'][0])
+            self.operatorRepresentation['padding_y_bottom'] = int(self.operatorRepresentation['pads'][1])
             return ret
         return False
 

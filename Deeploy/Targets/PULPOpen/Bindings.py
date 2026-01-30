@@ -237,6 +237,13 @@ PULPFloatConv2DBindings = [
         ForkTransformer)
 ]
 
+PULPFloatConv1DBindings =  [
+    NodeBinding(
+        ConvChecker([PointerClass(float32_t), PointerClass(float32_t),
+                     PointerClass(float32_t)], [PointerClass(float32_t)]), FloatConvTemplate.reference1DIm2ColTemplate,
+        ForkTransformer)
+]
+
 PULPFloatDWConv2DBindings = [
     NodeBinding(
         ConvChecker(
@@ -264,6 +271,11 @@ PULPRQSTallGEMMBindings = [
 ]
 
 PULPRQSGEMMBindings = PULPRQSGEMM_8_Binding
+
+PULPMaxPool1DBindings = [
+    NodeBinding(PULPMaxPoolChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+                FloatMaxPoolTemplate.referenceTemplate, ForkTransformer)
+]
 
 PULPMaxPool2DBindings = [
     NodeBinding(PULPMaxPoolChecker([PointerClass(type)], [PointerClass(type)]),
@@ -368,6 +380,9 @@ PULPTransposeBindings = [
 PULPConcatBindings = [
     NodeBinding(ConcatChecker([PointerClass(type), PointerClass(type)], [PointerClass(type)]),
                 ConcatTemplate.referenceTemplate, ClusterTransformer) for type in IntegerDataTypes
+] + [
+      NodeBinding(ConcatChecker([PointerClass(float32_t), PointerClass(float32_t)], [PointerClass(float32_t)]),
+                ConcatTemplate.referenceTemplate, ClusterTransformer)
 ]
 
 PULPiRMSNormBindings = [

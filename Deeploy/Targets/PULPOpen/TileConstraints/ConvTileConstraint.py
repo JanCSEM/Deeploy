@@ -596,3 +596,318 @@ class Conv2DTileConstraint(TileConstraint):
         variableReplacementSchedule = VariableReplacementScheme(replacements, replacementTypes)
 
         return variableReplacementSchedule, tilingSchedule
+
+class Conv1DTileConstraint(TileConstraint):
+
+    @staticmethod
+    def addGeometricalConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+        """
+        Add geometrical constraints for Conv1D tiling.
+
+        For spatial tiling, input tiles require extra memory for overlap regions
+        at tile boundaries (kernel receptive field). This method accounts for worst-case
+        overlap on all sides.
+
+        Future optimization: Currently uses worst-case memory allocation (kernel_size - 1
+        on all sides). A more memory-efficient approach would compute exact
+        per-tile memory requirements during serializeTilingSolution based on actual tile
+        positions, but this requires more extensive framework changes.
+        """
+
+        # ===== GET NECESSARY INFORMATION =====
+        #   Get to-be-tiled tensor buffers
+        inputBufferName = parseDict['data_in']
+        outputBufferName = parseDict['data_out']
+
+        weightBufferName = parseDict['weight']
+        biasBufferName = parseDict['bias']
+
+        inputBuffer = ctxt.lookup(inputBufferName)
+
+        #   Get other information
+        has_bias = False if parseDict['has_bias'] == "false" else True
+
+        pads = parseDict["pads"]
+        strides = parseDict["strides"]
+        dilations = parseDict["dilations"]
+        group = parseDict["group"]
+
+        # ===== ADD I/O DIMS TO MODEL AS VARS =====
+        buffersOfInterest = [inputBufferName, outputBufferName, weightBufferName]
+        if has_bias:
+            buffersOfInterest.append(biasBufferName)
+
+        for bufferName in buffersOfInterest:
+            tilerModel.addTensorDimToModel(ctxt, bufferName)
+
+        # ===== EXTRACT TENSOR DIMS AS VARS =====
+        #   Input
+        #   NLC layout
+        inputBatchVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 0)
+        inputChannelVar = tilerModel.getTensorDimVar(tensorName = inputBufferName, dimIdx = 2)
+        #   Output
+        #   NLC layout
+        outputBatchVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 0)
+        outputChannelVar = tilerModel.getTensorDimVar(tensorName = outputBufferName, dimIdx = 2)
+
+        #   Weight
+        #   C_out - L layout - C_in
+        #   (with c_in used for grouping different than number of channels)
+        weightOutChannelVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 0)
+        weightInChannelVar = tilerModel.getTensorDimVar(tensorName = weightBufferName, dimIdx = 2)
+
+        #   Bias (C_out)
+        if has_bias:
+            biasDimVar = tilerModel.getTensorDimVar(tensorName = biasBufferName, dimIdx = 0)
+        #   Add constraint for batch size match between input and output
+        tilerModel.addConstraint(outputBatchVar == inputBatchVar)
+        
+        #   Add constraint for input channel size match
+        #   (Depends on weight output channel and conv grouping)
+        tilerModel.addConstraint(inputChannelVar == (weightInChannelVar * group))
+
+        #   Add constraint for weight output channels to match
+        #   output number of channels
+        tilerModel.addConstraint(weightOutChannelVar == outputChannelVar)
+
+        #   Add constraint for bias size to match number of output channels
+        if has_bias:
+            tilerModel.addConstraint(biasDimVar == outputChannelVar)
+
+        return tilerModel
+ 
+    @staticmethod
+    def addPolicyConstraint(tilerModel: TilerModel, parseDict: Dict, ctxt: NetworkContext) -> TilerModel:
+
+        # ===== GET NECESSARY INFORMATION =====
+        #   Get to-be-tiled tensor buffers
+        inputBuffer = ctxt.lookup(name = parseDict['data_in'])
+        weightBuffer = ctxt.lookup(name = parseDict['weight'])
+
+        #   Get other information
+        pads = parseDict["pads"]
+        strides = parseDict["strides"]
+
+        # ===== EXTRACT TENSOR DIMS AS VARS =====
+        #   Input
+        #   NLC layout
+        inputLengthVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 1)
+        inputChannelVar = tilerModel.getTensorDimVar(tensorName = inputBuffer.name, dimIdx = 2)
+
+        #   Weight
+        #   C_out - L - C_in
+        #   (with c_in used for grouping different than number of channels)
+        weightLengthVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 1)
+        weightInChannelVar = tilerModel.getTensorDimVar(tensorName = weightBuffer.name, dimIdx = 2)
+        # ===== COMPUTE EFFECTIVE INPUT HEIGHT AND WIDTH =====
+        #   Assume worst case scenario (data padding on all sides) when tiling on a ceratin dimension.
+        effectiveInputLength = inputLengthVar + ((pads[0] + pads[1]) * (inputLengthVar == inputBuffer.shape[1])) - (
+            (weightLengthVar - 1) * (inputLengthVar != inputBuffer.shape[1]))
+
+        # ===== ADD CONSTRAINTS =====
+        #   Keep whole input channels (required for im2col algorithm)
+        tilerModel.addConstraint(inputChannelVar == parseDict['ch_im_in'])
+
+        #   Require minimum input spatial dimensions to be at least kernel size for proper convolution application
+        tilerModel.addConstraint(effectiveInputLength >= parseDict['dim_kernel_y'])
+
+        #   Ensure input tiles are compatible with stride
+        tilerModel.addConstraint((effectiveInputLength % strides[0]) == 0)
+
+        #   Weight should not be tiled
+        tilerModel.addConstraint(weightLengthVar == parseDict['dim_kernel_y'])
+        tilerModel.addConstraint(weightInChannelVar * parseDict['group'] == parseDict['ch_im_in'])
+
+        return tilerModel
+
+    @staticmethod
+    def constructSymbolicNodeRep(tilerModel: TilerModel, parseDict: Dict,
+                                 ctxt: NetworkContext) -> Dict[str, Union[int, IntVar]]:
+
+        inputBuffer = ctxt.lookup(name = parseDict['data_in'])
+        weightBuffer = ctxt.lookup(name = parseDict['weight'])
+        outputBuffer = ctxt.lookup(name = parseDict['data_out'])
+
+        symbolicParseDict = parseDict.copy()
+
+        symbolicParseDict['dim_im_in_y'] = tilerModel.getTensorDimVar(inputBuffer.name, 1)
+
+        symbolicParseDict['dim_kernel_y'] = tilerModel.getTensorDimVar(weightBuffer.name, 1)
+
+        symbolicParseDict['dim_im_out_y'] = tilerModel.getTensorDimVar(outputBuffer.name, 1)
+
+        return symbolicParseDict
+
+    @staticmethod
+    def computeInputCube(
+        kernelShape: Tuple[int, int],
+        pads: Tuple[int, int, int, int],
+        strides: Tuple[int, int],
+        inputCSize: int,
+        outputCube: HyperRectangle,
+        outputDims: Tuple[int, int, int],
+        inputDims: Optional[Tuple[int, int, int]] = None,
+        outputAbsoluteOffsets: Optional[Tuple[int, int, int, int]] = None,
+    ) -> Tuple[HyperRectangle, Tuple[int, int, int, int]]:
+
+        # Obtain relative and absolute information about the output tile
+        (outputBatchOffset, outputLOffset, _) = outputCube.offset
+        (outputBatchSize, outputLSize, _) = outputCube.dims
+        (_, outputLAbsoluteOffset,
+         _) = outputAbsoluteOffsets if outputAbsoluteOffsets is not None else outputCube.offset
+
+        # Extract individual pads and strides
+        padLeft, padRight = pads
+        strideL = strides
+
+        # Compute actuale tile padding, depending on tile position (keep padding only for margins situated at the edge).
+        # Required for the Im2Col kernel that handles 0-padding internally.
+        tilePadLeft = padLeft if (outputLAbsoluteOffset == 0) else 0
+        tilePadRight = padRight if (outputLAbsoluteOffset + outputLSize == outputDims[1]) else 0
+
+        # LMACAN: Calculating the per-dimension relative tile offset without padding
+        #         The offset is relative to the upstream bigger tile, and represents the offset to
+        #         "useful" data, so padding is not included.
+        inputLOffset = max(outputLOffset * strideL - padLeft, 0)
+
+        # Compute input dimensions according to procedure described in PyTorch's Conv2D documentation
+        # Assuming worst case (cutting of (stride - 1) elements at the end of each dimension)
+        inputLSize = outputLSize * strideL + (kernelShape[0] - 1) - (tilePadLeft + tilePadRight)
+
+        if inputDims is not None:
+            # Clamp to remaining input size from the current offset
+            # This prevents reading beyond input boundaries for edge tiles
+            inputLSize = min(inputLSize, inputDims[1] - inputLOffset)
+
+        # Generate input tile object
+        InCube = HyperRectangle((outputBatchOffset, inputLOffset, 0),
+                                (outputBatchSize, inputLSize, inputCSize))
+
+        return InCube, (tilePadLeft, tilePadRight)
+
+    @classmethod
+    def serializeTilingSolution(
+            cls, tilingSolution: NodeMemoryConstraint, absoluteOutputCubes: List[AbsoluteHyperRectangle],
+            targetMemLevel: str, ctxt: NetworkContext,
+            operatorRepresentation: OperatorRepresentation) -> Tuple[VariableReplacementScheme, TilingSchedule]:
+
+        # Extract rectangle information (offsets and dimensions) from output cubes
+        outputCubes = [cube.rectangle for cube in absoluteOutputCubes]
+
+        # Extract required component information from operator representation
+        varIn = operatorRepresentation["data_in"]
+        varWeight = operatorRepresentation['weight']
+        varBias = operatorRepresentation['bias']
+        varOut = operatorRepresentation['data_out']
+
+        group = operatorRepresentation["group"]
+
+        # Prepare address names, also handling bias
+        if varBias != "NULL":
+            addrNames = ['data_in', 'weight', 'bias', 'data_out']
+        else:
+            addrNames = ['data_in', 'weight', 'data_out']
+
+        # Extract memory base addresses for each of the required components,
+        # based on the computed memory configuration
+        inputBaseOffsets, outputBaseOffsets = cls.extractBaseAddr(tilingSolution, targetMemLevel,
+                                                                  operatorRepresentation, addrNames)
+
+        # Prepare cube lists for components
+        inputInCubes = []
+        inputWeightCubes = []
+        inputBiasCubes = []
+
+        # Prepare replacement lists for the elements inside the operator representation,
+        # for the cubes to be computed further down in this function
+        replacements: Dict[str, List[int]] = {
+            "dim_im_in_y": [],
+            "dim_im_out_y": [],
+            "ch_im_in": [],
+            "ch_im_out": [],
+            "padding_y_left": [],
+            "padding_y_right": []
+        }
+
+        replacementTypes = {
+            "dim_im_in_y": PointerClass(uint16_t),
+            "dim_im_out_y": PointerClass(uint16_t),
+            "ch_im_in": PointerClass(uint16_t),
+            "ch_im_out": PointerClass(uint16_t),
+            "padding_y_left": PointerClass(uint8_t),
+            "padding_y_right": PointerClass(uint8_t),
+        }
+
+        # Obtain weight dimensions
+        (_, weightL, weightCin) = ctxt.lookup(varWeight).shape
+
+        # Obtain padding and striding information
+        pads = operatorRepresentation['pads']
+        strides = operatorRepresentation['strides']
+
+        # Iterate throught the cubes in which the output will be split for tiling
+        for idx, cube in enumerate(outputCubes):
+            # Obtain current cube offsets and dimensions
+            COffset = cube.offset[3]
+            (_, LSize, CSize) = cube.dims
+
+            # Compute input cube
+            InCube, padding_tuple = Conv2DTileConstraint.computeInputCube(
+                kernelShape = (weightL,),
+                pads = pads,
+                strides = strides,
+                inputCSize = weightCin * group,
+                outputCube = cube,
+                inputDims = ctxt.lookup(varIn).shape,
+                outputDims = ctxt.lookup(varOut).shape,
+                outputAbsoluteOffsets = absoluteOutputCubes[idx].absoluteOffset)
+
+            # Extract individual padding
+            padding_left, padding_right, padding_top, padding_bottom = padding_tuple
+
+            # Add element information for the operator representation
+            replacements['dim_im_in_y'].append(InCube.dims[1])
+
+            replacements['dim_im_out_y'].append(LSize)
+
+            replacements['ch_im_in'].append(weightCin * group)
+            replacements['ch_im_out'].append(CSize)
+
+            replacements['padding_y_left'].append(padding_left)
+            replacements['padding_y_right'].append(padding_right)
+
+            # Add input cube with tiling information to the corresponding list
+            inputInCubes.append(InCube)
+
+            # Obtain and add weight cube with tiling information to the corresponding list
+            WeightCube = HyperRectangle((COffset, 0, 0, 0), (CSize, weightL, weightCin))
+            inputWeightCubes.append(WeightCube)
+
+            # Obtain and add bias cube with tiling information to the corresponding list,
+            # if bias exists
+            if varBias != "NULL":
+                BiasCube = HyperRectangle((COffset,), (CSize,))
+                inputBiasCubes.append(BiasCube)
+
+        # Prepare loading schedule lists
+        inputLoadSchedule = []
+        outputLoadSchedule = []
+
+        # Create input schedule lists, with bias handling
+        if varBias == "NULL":
+            for a, b in zip(inputInCubes, inputWeightCubes):
+                inputLoadSchedule.append({"data_in": a, "weight": b})
+        else:
+            for a, b, c in zip(inputInCubes, inputWeightCubes, inputBiasCubes):
+                inputLoadSchedule.append({"data_in": a, "weight": b, "bias": c})
+
+        # Create output schedule list
+        for out in outputCubes:
+            outputLoadSchedule.append({"data_out": out})
+
+        # Prepare containing objects with information computed in this function regarding tiling schedule
+        # and variable replacement inside operator representation
+        tilingSchedule = TilingSchedule(inputBaseOffsets, outputBaseOffsets, inputLoadSchedule, outputLoadSchedule)
+        variableReplacementSchedule = VariableReplacementScheme(replacements, replacementTypes)
+
+        return variableReplacementSchedule, tilingSchedule

@@ -19,9 +19,16 @@ class PULP2DFloatConvIm2ColTemplate(NodeTemplate):
             ctxt: NetworkContext,
             operatorRepresentation: OperatorRepresentation) -> List[Tuple[str, Union[int, IntVar]]]:
         # Memory allocation for the im2col buffer can be dynamic, based on the number of cores.
-        im2col_dim = (operatorRepresentation["weight_type"].typeWidth //
-                      8) * operatorRepresentation["n_cores"] * operatorRepresentation[
-                          'ch_im_in'] * operatorRepresentation['dim_kernel_x'] * operatorRepresentation['dim_kernel_y']
+        if "dim_kernel_x" not in operatorRepresentation:
+            # 1D convolution case
+            im2col_dim = (operatorRepresentation["weight_type"].typeWidth //
+                          8) * operatorRepresentation["n_cores"] * operatorRepresentation[
+                              'ch_im_in'] * operatorRepresentation['dim_kernel_y']
+        else:
+            # 2D convolution case
+            im2col_dim = (operatorRepresentation["weight_type"].typeWidth //
+                        8) * operatorRepresentation["n_cores"] * operatorRepresentation[
+                            'ch_im_in'] * operatorRepresentation['dim_kernel_x'] * operatorRepresentation['dim_kernel_y']
 
         im2col_name = operatorRepresentation['nodeName'] + "_buffer"
 
@@ -95,6 +102,30 @@ for (uint32_t n=0; n<${batch}; ++n) {
 }
 """)
 
+reference1DTemplate = NodeTemplate("""
+// 1D FP Conv HWC with ChannelOut parallelism (Name: ${nodeName}, Op: ${nodeOp})
+
+${data_in_type.typeName} ref_${data_out}_${data_in} = ${data_in};
+${data_out_type.typeName} ref_${data_out}_${data_out} = ${data_out};
+
+for (uint32_t n=0; n<${batch}; ++n) {
+    PULP_Conv2d_fp${data_in_type.referencedType.typeWidth}_fp${weight_type.referencedType.typeWidth}_fp${data_out_type.referencedType.typeWidth}_HWC(
+        ref_${data_out}_${data_in},
+        ${dim_im_in_y}, 1, ${ch_im_in},
+        ${weight}, ${ch_im_out},
+        ${dim_kernel_y}, 1,
+        ${stride_y}, 1,
+        ${bias}, ${has_bias},
+        ref_${data_out}_${data_out},
+        ${padding_y_top}, ${padding_y_bottom}, 0, 0
+    );
+
+
+    ref_${data_out}_${data_in} += ${ch_im_in} * ${dim_im_in_y};
+    ref_${data_out}_${data_out} += ${ch_im_out} * ${dim_im_out_y};
+}
+""")
+
 reference2DIm2ColTemplate = PULP2DFloatConvIm2ColTemplate("""
 // 2D FP Conv HWC with Im2Col and ChannelOout parallelism (Name: ${nodeName}, Op: ${nodeOp})
 
@@ -126,6 +157,39 @@ for (uint32_t n=0; n<${batch}; ++n) {
     ref_${data_out}_${data_out} += ${ch_im_out} * ${dim_im_out_x} * ${dim_im_out_y};
 }
 """)
+
+reference1DIm2ColTemplate = PULP2DFloatConvIm2ColTemplate("""
+// 1D FP Conv HWC with Im2Col and ChannelOout parallelism (Name: ${nodeName}, Op: ${nodeOp})
+
+${data_in_type.typeName} ref_${data_out}_${data_in} = ${data_in};
+${data_out_type.typeName} ref_${data_out}_${data_out} = ${data_out};
+
+for (uint32_t n=0; n<${batch}; ++n) {
+    PULP_Conv2d_Im2Col_fp${data_in_type.referencedType.typeWidth}_fp${weight_type.referencedType.typeWidth}_fp${data_out_type.referencedType.typeWidth}_HWC(
+        ref_${data_out}_${data_in},
+        1,
+        ${dim_im_in_y},
+        ${ch_im_in},
+        ${weight},
+        ${ch_im_out},
+        1,
+        ${dim_kernel_y},
+        1,
+        ${stride_y},
+        ${bias}, ${has_bias},
+        ref_${data_out}_${data_out},
+        ${padding_y_top},
+        ${padding_y_bottom},
+        0,
+        0,
+        ${ctxtBuffer}
+    );
+
+    ref_${data_out}_${data_in} += ${ch_im_in} * ${dim_im_in_y};
+    ref_${data_out}_${data_out} += ${ch_im_out} * ${dim_im_out_y};
+}
+""")
+
 
 referenceDW2DIm2ColTemplate = PULP2DFloatDWConvIm2ColTemplate("""
 // 2D DW FP Conv HWC with Im2Col and ChannelOout parallelism (Name: ${nodeName}, Op: ${nodeOp})
