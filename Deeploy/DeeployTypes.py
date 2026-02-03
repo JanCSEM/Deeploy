@@ -223,6 +223,7 @@ class NodeTemplate():
                 operatorRepresentation[f'RENDER_{key}'] = template.generate(**subNodeRep, **kwargs)
             callStack += self.template.render(**operatorRepresentation, **kwargs)
         except:
+            
             log.error(operatorRepresentation)
             log.error(mako.exceptions.text_error_template().render())
             raise KeyError(f"Template {self} failed!")
@@ -3406,6 +3407,7 @@ class NetworkDeployer(NetworkContainer):
         _inps = self.graph.inputs.copy()
         for inp in _inps:
             if np.prod(inp.shape) == 0:
+                
                 self.graph.inputs.remove(inp)
 
     # Don't override this

@@ -274,7 +274,7 @@ PULPRQSGEMMBindings = PULPRQSGEMM_8_Binding
 
 PULPMaxPool1DBindings = [
     NodeBinding(PULPMaxPoolChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
-                FloatMaxPoolTemplate.referenceTemplate, ForkTransformer)
+                FloatMaxPoolTemplate.referenceTemplate1d, ForkTransformer)
 ]
 
 PULPMaxPool2DBindings = [

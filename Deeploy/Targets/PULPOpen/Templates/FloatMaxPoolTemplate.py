@@ -23,3 +23,23 @@ for (uint32_t n=0; n<${batch}; ++n) {
     ref_${data_out}_${data_out} += ${ch_im_out}*${dim_im_out_x}*${dim_im_out_y};
 }
 """)
+
+referenceTemplate1d = NodeTemplate("""
+// 2D Float MaxPool Channel Parallel (Name: ${nodeName}, Op: ${nodeOp})
+
+${data_in_type.typeName} ref_${data_out}_${data_in} = ${data_in};
+${data_out_type.typeName} ref_${data_out}_${data_out} = ${data_out};
+
+for (uint32_t n=0; n<${batch}; ++n) {
+    PULP_MaxPool2d_fp${data_in_type.referencedType.typeWidth}_fp${data_out_type.referencedType.typeWidth}_HWC(
+        ref_${data_out}_${data_in},
+        1, ${dim_im_in_y}, ${ch_im_in},
+        1, ${dim_kernel_y},
+        1, ${stride_y},
+        ref_${data_out}_${data_out},
+        ${padding_y}, ${padding_y_right}, 0, 0
+    );
+    ref_${data_out}_${data_in} += ${ch_im_in}*${dim_im_in_y};
+    ref_${data_out}_${data_out} += ${ch_im_out}*${dim_im_out_y};
+}
+""")
