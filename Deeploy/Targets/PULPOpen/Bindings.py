@@ -462,3 +462,33 @@ BasicDequantBindings = [
     NodeBinding(DequantChecker([PointerClass(int32_t)], [PointerClass(float32_t)]), DequantTemplate.referenceTemplate,
                 ForkTransformer),
 ]
+
+PULPPerturbNormalBindings = [
+    NodeBinding(
+        PerturbZOChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+        FloatPerturbNormalTemplate.referenceTemplate,
+        ForkTransformer)]
+
+PULPPerturbUniformBindings = [
+    NodeBinding(
+        PerturbZOChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+        FloatPerturbUniformTemplate.referenceTemplate,
+        ForkTransformer)]
+
+PULPPerturbEggrollBindings = [
+    NodeBinding(
+        PerturbZOChecker([PointerClass(int32_t)], [PointerClass(float32_t)]),
+        FloatPerturbEggrollTemplate.referenceTemplate,
+        ForkTransformer)]
+
+PULPPerturbRademacherBindings = [
+    NodeBinding(
+        PerturbZOChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+        FloatPerturbRademacherTemplate.referenceTemplate,
+        ForkTransformer)]
+
+PULPPerturbTriangleBindings = [
+    NodeBinding( 
+        PerturbZOChecker([PointerClass(float32_t)], [PointerClass(float32_t)]),
+        FloatPerturbTriangleTemplate.referenceTemplate,
+        ForkTransformer)]
