@@ -3064,6 +3064,8 @@ class NetworkContainer():
         for engine in self.Platform.engines:
             for include in engine.includeList:
                 includeStr += ["#include \"" + include + "\""]
+            if engine.name == "GAP9Cluster":
+                includeStr += ["#include \"kernel/RandomNoise.h\""]
         return ("\n").join(includeStr)
 
     def generateEngineInitializationCode(self) -> str:
