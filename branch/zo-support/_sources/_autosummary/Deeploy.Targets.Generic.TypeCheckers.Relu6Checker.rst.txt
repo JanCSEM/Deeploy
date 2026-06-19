@@ -1,0 +1,41 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.TypeCheckers.Relu6Checker
+=================================================
+
+.. currentmodule:: Deeploy.Targets.Generic.TypeCheckers
+
+.. autoclass:: Relu6Checker
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~Relu6Checker.__init__
+      ~Relu6Checker.annotateDict
+      ~Relu6Checker.checkOutputType
+      ~Relu6Checker.signature
+      ~Relu6Checker.typeCheck
+      ~Relu6Checker.typeCheckNodeInputs
+      ~Relu6Checker.typeInferGlobalCtxt
+      ~Relu6Checker.typeInferOutput
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Relu6Checker.typeDict
+   
+   

@@ -1,0 +1,39 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.Generic.Parsers.Relu6Parser
+===========================================
+
+.. currentmodule:: Deeploy.Targets.Generic.Parsers
+
+.. autoclass:: Relu6Parser
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~Relu6Parser.__init__
+      ~Relu6Parser.parse
+      ~Relu6Parser.parseInputs
+      ~Relu6Parser.parseNode
+      ~Relu6Parser.parseNodeCtxt
+      ~Relu6Parser.parseOutputs
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Relu6Parser.operatorRepresentation
+   
+   

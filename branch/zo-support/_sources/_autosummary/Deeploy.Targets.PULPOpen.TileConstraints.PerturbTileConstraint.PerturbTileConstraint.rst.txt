@@ -1,0 +1,36 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.TileConstraints.PerturbTileConstraint.PerturbTileConstraint
+====================================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.TileConstraints.PerturbTileConstraint
+
+.. autoclass:: PerturbTileConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PerturbTileConstraint.__init__
+      ~PerturbTileConstraint.addGeometricalConstraint
+      ~PerturbTileConstraint.addPolicyConstraint
+      ~PerturbTileConstraint.constructSymbolicNodeRep
+      ~PerturbTileConstraint.extractBaseAddr
+      ~PerturbTileConstraint.getBaseAddr
+      ~PerturbTileConstraint.sanitizeTilingSchedule
+      ~PerturbTileConstraint.serializeTilingSolution
+      ~PerturbTileConstraint.wrapTilingSolution
+   
+   
+
+   
+   
+   

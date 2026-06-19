@@ -1,0 +1,36 @@
+.. SPDX-FileCopyrightText: 2024 ETH Zurich and University of Bologna
+..
+.. SPDX-License-Identifier: Apache-2.0
+
+Deeploy.Targets.PULPOpen.TileConstraints.DMASafeTileConstraints.PULPTransposeTileConstraint
+===========================================================================================
+
+.. currentmodule:: Deeploy.Targets.PULPOpen.TileConstraints.DMASafeTileConstraints
+
+.. autoclass:: PULPTransposeTileConstraint
+   :members:
+   :show-inheritance:
+   :inherited-members:
+
+   
+   
+   .. rubric:: Methods
+   .. automethod:: __init__
+
+   .. autosummary::
+   
+      ~PULPTransposeTileConstraint.__init__
+      ~PULPTransposeTileConstraint.addGeometricalConstraint
+      ~PULPTransposeTileConstraint.addPolicyConstraint
+      ~PULPTransposeTileConstraint.constructSymbolicNodeRep
+      ~PULPTransposeTileConstraint.extractBaseAddr
+      ~PULPTransposeTileConstraint.getBaseAddr
+      ~PULPTransposeTileConstraint.sanitizeTilingSchedule
+      ~PULPTransposeTileConstraint.serializeTilingSolution
+      ~PULPTransposeTileConstraint.wrapTilingSolution
+   
+   
+
+   
+   
+   
